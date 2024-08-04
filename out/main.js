@@ -1,243 +1,351 @@
 const $effekt = {  };
 
-const $getOp = "get_1185";
+const $getOp = "get_2786";
 
-const $putOp = "put_1656";
+const $putOp = "put_2787";
 
-class Tuple2_212 {
-  constructor(first_215, second_216) {
+class Less_299 {
+  constructor() {
     this.__tag = 0;
-    this.first_215 = first_215;
-    this.second_216 = second_216;
+  }
+  __reflect() {
+    return { __tag: 0, __name: "Less", __data: [] };
+  }
+  __equals(other3909) {
+    if (!other3909) return false;
+    if (!($effekt.equals(this.__tag, other3909.__tag))) return false;
+    return true;
+  }
+}
+
+class Equal_300 {
+  constructor() {
+    this.__tag = 1;
+  }
+  __reflect() {
+    return { __tag: 1, __name: "Equal", __data: [] };
+  }
+  __equals(other3910) {
+    if (!other3910) return false;
+    if (!($effekt.equals(this.__tag, other3910.__tag))) return false;
+    return true;
+  }
+}
+
+class Greater_301 {
+  constructor() {
+    this.__tag = 2;
+  }
+  __reflect() {
+    return { __tag: 2, __name: "Greater", __data: [] };
+  }
+  __equals(other3911) {
+    if (!other3911) return false;
+    if (!($effekt.equals(this.__tag, other3911.__tag))) return false;
+    return true;
+  }
+}
+
+class Tuple2_303 {
+  constructor(first_306, second_307) {
+    this.__tag = 0;
+    this.first_306 = first_306;
+    this.second_307 = second_307;
   }
   __reflect() {
     return {
       __tag: 0,
       __name: "Tuple2",
-      __data: [this.first_215, this.second_216]
+      __data: [this.first_306, this.second_307]
     };
   }
-  __equals(other1773) {
-    if (!other1773) return false;
-    if (this.__tag !== other1773.__tag) return false;
-    if (this.first_215 !== other1773.first_215) return false;
-    if (this.second_216 !== other1773.second_216) return false;
+  __equals(other3912) {
+    if (!other3912) return false;
+    if (!($effekt.equals(this.__tag, other3912.__tag))) return false;
+    if (!($effekt.equals(this.first_306, other3912.first_306))) return false;
+    if (!($effekt.equals(this.second_307, other3912.second_307))) return false;
     return true;
   }
 }
 
-class Tuple3_217 {
-  constructor(first_221, second_222, third_223) {
+class Tuple3_308 {
+  constructor(first_312, second_313, third_314) {
     this.__tag = 0;
-    this.first_221 = first_221;
-    this.second_222 = second_222;
-    this.third_223 = third_223;
+    this.first_312 = first_312;
+    this.second_313 = second_313;
+    this.third_314 = third_314;
   }
   __reflect() {
     return {
       __tag: 0,
       __name: "Tuple3",
-      __data: [this.first_221, this.second_222, this.third_223]
+      __data: [this.first_312, this.second_313, this.third_314]
     };
   }
-  __equals(other1774) {
-    if (!other1774) return false;
-    if (this.__tag !== other1774.__tag) return false;
-    if (this.first_221 !== other1774.first_221) return false;
-    if (this.second_222 !== other1774.second_222) return false;
-    if (this.third_223 !== other1774.third_223) return false;
+  __equals(other3913) {
+    if (!other3913) return false;
+    if (!($effekt.equals(this.__tag, other3913.__tag))) return false;
+    if (!($effekt.equals(this.first_312, other3913.first_312))) return false;
+    if (!($effekt.equals(this.second_313, other3913.second_313))) return false;
+    if (!($effekt.equals(this.third_314, other3913.third_314))) return false;
     return true;
   }
 }
 
-class Tuple4_224 {
-  constructor(first_229, second_230, third_231, fourth_232) {
+class Tuple4_315 {
+  constructor(first_320, second_321, third_322, fourth_323) {
     this.__tag = 0;
-    this.first_229 = first_229;
-    this.second_230 = second_230;
-    this.third_231 = third_231;
-    this.fourth_232 = fourth_232;
+    this.first_320 = first_320;
+    this.second_321 = second_321;
+    this.third_322 = third_322;
+    this.fourth_323 = fourth_323;
   }
   __reflect() {
     return {
       __tag: 0,
       __name: "Tuple4",
-      __data: [this.first_229, this.second_230, this.third_231, this.fourth_232]
+      __data: [this.first_320, this.second_321, this.third_322, this.fourth_323]
     };
   }
-  __equals(other1775) {
-    if (!other1775) return false;
-    if (this.__tag !== other1775.__tag) return false;
-    if (this.first_229 !== other1775.first_229) return false;
-    if (this.second_230 !== other1775.second_230) return false;
-    if (this.third_231 !== other1775.third_231) return false;
-    if (this.fourth_232 !== other1775.fourth_232) return false;
+  __equals(other3914) {
+    if (!other3914) return false;
+    if (!($effekt.equals(this.__tag, other3914.__tag))) return false;
+    if (!($effekt.equals(this.first_320, other3914.first_320))) return false;
+    if (!($effekt.equals(this.second_321, other3914.second_321))) return false;
+    if (!($effekt.equals(this.third_322, other3914.third_322))) return false;
+    if (!($effekt.equals(this.fourth_323, other3914.fourth_323))) return false;
     return true;
   }
 }
 
-class Tuple5_233 {
-  constructor(first_239, second_240, third_241, fourth_242, fifth_243) {
+class Tuple5_324 {
+  constructor(first_330, second_331, third_332, fourth_333, fifth_334) {
     this.__tag = 0;
-    this.first_239 = first_239;
-    this.second_240 = second_240;
-    this.third_241 = third_241;
-    this.fourth_242 = fourth_242;
-    this.fifth_243 = fifth_243;
+    this.first_330 = first_330;
+    this.second_331 = second_331;
+    this.third_332 = third_332;
+    this.fourth_333 = fourth_333;
+    this.fifth_334 = fifth_334;
   }
   __reflect() {
     return {
       __tag: 0,
       __name: "Tuple5",
-      __data: [this.first_239, this.second_240, this.third_241, this.fourth_242, this.fifth_243]
+      __data: [this.first_330, this.second_331, this.third_332, this.fourth_333, this.fifth_334]
     };
   }
-  __equals(other1776) {
-    if (!other1776) return false;
-    if (this.__tag !== other1776.__tag) return false;
-    if (this.first_239 !== other1776.first_239) return false;
-    if (this.second_240 !== other1776.second_240) return false;
-    if (this.third_241 !== other1776.third_241) return false;
-    if (this.fourth_242 !== other1776.fourth_242) return false;
-    if (this.fifth_243 !== other1776.fifth_243) return false;
+  __equals(other3915) {
+    if (!other3915) return false;
+    if (!($effekt.equals(this.__tag, other3915.__tag))) return false;
+    if (!($effekt.equals(this.first_330, other3915.first_330))) return false;
+    if (!($effekt.equals(this.second_331, other3915.second_331))) return false;
+    if (!($effekt.equals(this.third_332, other3915.third_332))) return false;
+    if (!($effekt.equals(this.fourth_333, other3915.fourth_333))) return false;
+    if (!($effekt.equals(this.fifth_334, other3915.fifth_334))) return false;
     return true;
   }
 }
 
-class Tuple6_244 {
-  constructor(first_251, second_252, third_253, fourth_254, fifth_255, sixth_256) {
+class Tuple6_335 {
+  constructor(first_342, second_343, third_344, fourth_345, fifth_346, sixth_347) {
     this.__tag = 0;
-    this.first_251 = first_251;
-    this.second_252 = second_252;
-    this.third_253 = third_253;
-    this.fourth_254 = fourth_254;
-    this.fifth_255 = fifth_255;
-    this.sixth_256 = sixth_256;
+    this.first_342 = first_342;
+    this.second_343 = second_343;
+    this.third_344 = third_344;
+    this.fourth_345 = fourth_345;
+    this.fifth_346 = fifth_346;
+    this.sixth_347 = sixth_347;
   }
   __reflect() {
     return {
       __tag: 0,
       __name: "Tuple6",
-      __data: [this.first_251, this.second_252, this.third_253, this.fourth_254, this.fifth_255, this.sixth_256]
+      __data: [this.first_342, this.second_343, this.third_344, this.fourth_345, this.fifth_346, this.sixth_347]
     };
   }
-  __equals(other1777) {
-    if (!other1777) return false;
-    if (this.__tag !== other1777.__tag) return false;
-    if (this.first_251 !== other1777.first_251) return false;
-    if (this.second_252 !== other1777.second_252) return false;
-    if (this.third_253 !== other1777.third_253) return false;
-    if (this.fourth_254 !== other1777.fourth_254) return false;
-    if (this.fifth_255 !== other1777.fifth_255) return false;
-    if (this.sixth_256 !== other1777.sixth_256) return false;
+  __equals(other3916) {
+    if (!other3916) return false;
+    if (!($effekt.equals(this.__tag, other3916.__tag))) return false;
+    if (!($effekt.equals(this.first_342, other3916.first_342))) return false;
+    if (!($effekt.equals(this.second_343, other3916.second_343))) return false;
+    if (!($effekt.equals(this.third_344, other3916.third_344))) return false;
+    if (!($effekt.equals(this.fourth_345, other3916.fourth_345))) return false;
+    if (!($effekt.equals(this.fifth_346, other3916.fifth_346))) return false;
+    if (!($effekt.equals(this.sixth_347, other3916.sixth_347))) return false;
     return true;
   }
 }
 
-class RuntimeError_260 {
+class MissingValue_535 {
   constructor() {
     this.__tag = 0;
   }
   __reflect() {
-    return { __tag: 0, __name: "RuntimeError", __data: [] };
+    return { __tag: 0, __name: "MissingValue", __data: [] };
   }
-  __equals(other1778) {
-    if (!other1778) return false;
-    if (this.__tag !== other1778.__tag) return false;
+  __equals(other3917) {
+    if (!other3917) return false;
+    if (!($effekt.equals(this.__tag, other3917.__tag))) return false;
     return true;
   }
 }
 
-class None_415 {
-  constructor() {
-    this.__tag = 0;
-  }
-  __reflect() {
-    return { __tag: 0, __name: "None", __data: [] };
-  }
-  __equals(other1779) {
-    if (!other1779) return false;
-    if (this.__tag !== other1779.__tag) return false;
-    return true;
-  }
-}
-
-class Some_416 {
-  constructor(value_418) {
-    this.__tag = 1;
-    this.value_418 = value_418;
-  }
-  __reflect() {
-    return { __tag: 1, __name: "Some", __data: [this.value_418] };
-  }
-  __equals(other1780) {
-    if (!other1780) return false;
-    if (this.__tag !== other1780.__tag) return false;
-    if (this.value_418 !== other1780.value_418) return false;
-    return true;
-  }
-}
-
-class EmptyList_633 {
-  constructor() {
-    this.__tag = 0;
-  }
-  __reflect() {
-    return { __tag: 0, __name: "EmptyList", __data: [] };
-  }
-  __equals(other1781) {
-    if (!other1781) return false;
-    if (this.__tag !== other1781.__tag) return false;
-    return true;
-  }
-}
-
-class OutOfBounds_634 {
+class OutOfBounds_536 {
   constructor() {
     this.__tag = 0;
   }
   __reflect() {
     return { __tag: 0, __name: "OutOfBounds", __data: [] };
   }
-  __equals(other1782) {
-    if (!other1782) return false;
-    if (this.__tag !== other1782.__tag) return false;
+  __equals(other3918) {
+    if (!other3918) return false;
+    if (!($effekt.equals(this.__tag, other3918.__tag))) return false;
     return true;
   }
 }
 
-class Nil_635 {
+class RuntimeError_537 {
+  constructor() {
+    this.__tag = 0;
+  }
+  __reflect() {
+    return { __tag: 0, __name: "RuntimeError", __data: [] };
+  }
+  __equals(other3919) {
+    if (!other3919) return false;
+    if (!($effekt.equals(this.__tag, other3919.__tag))) return false;
+    return true;
+  }
+}
+
+class WrongFormat_538 {
+  constructor() {
+    this.__tag = 0;
+  }
+  __reflect() {
+    return { __tag: 0, __name: "WrongFormat", __data: [] };
+  }
+  __equals(other3920) {
+    if (!other3920) return false;
+    if (!($effekt.equals(this.__tag, other3920.__tag))) return false;
+    return true;
+  }
+}
+
+class on_555 {
+  constructor() {
+    this.__tag = 0;
+  }
+  __reflect() {
+    return { __tag: 0, __name: "on", __data: [] };
+  }
+  __equals(other3921) {
+    if (!other3921) return false;
+    if (!($effekt.equals(this.__tag, other3921.__tag))) return false;
+    return true;
+  }
+}
+
+class None_742 {
+  constructor() {
+    this.__tag = 0;
+  }
+  __reflect() {
+    return { __tag: 0, __name: "None", __data: [] };
+  }
+  __equals(other3922) {
+    if (!other3922) return false;
+    if (!($effekt.equals(this.__tag, other3922.__tag))) return false;
+    return true;
+  }
+}
+
+class Some_743 {
+  constructor(value_745) {
+    this.__tag = 1;
+    this.value_745 = value_745;
+  }
+  __reflect() {
+    return { __tag: 1, __name: "Some", __data: [this.value_745] };
+  }
+  __equals(other3923) {
+    if (!other3923) return false;
+    if (!($effekt.equals(this.__tag, other3923.__tag))) return false;
+    if (!($effekt.equals(this.value_745, other3923.value_745))) return false;
+    return true;
+  }
+}
+
+class Nil_1060 {
   constructor() {
     this.__tag = 0;
   }
   __reflect() {
     return { __tag: 0, __name: "Nil", __data: [] };
   }
-  __equals(other1783) {
-    if (!other1783) return false;
-    if (this.__tag !== other1783.__tag) return false;
+  __equals(other3924) {
+    if (!other3924) return false;
+    if (!($effekt.equals(this.__tag, other3924.__tag))) return false;
     return true;
   }
 }
 
-class Cons_636 {
-  constructor(head_639, tail_640) {
+class Cons_1061 {
+  constructor(head_1064, tail_1065) {
     this.__tag = 1;
-    this.head_639 = head_639;
-    this.tail_640 = tail_640;
+    this.head_1064 = head_1064;
+    this.tail_1065 = tail_1065;
   }
   __reflect() {
     return {
       __tag: 1,
       __name: "Cons",
-      __data: [this.head_639, this.tail_640]
+      __data: [this.head_1064, this.tail_1065]
     };
   }
-  __equals(other1784) {
-    if (!other1784) return false;
-    if (this.__tag !== other1784.__tag) return false;
-    if (this.head_639 !== other1784.head_639) return false;
-    if (this.tail_640 !== other1784.tail_640) return false;
+  __equals(other3925) {
+    if (!other3925) return false;
+    if (!($effekt.equals(this.__tag, other3925.__tag))) return false;
+    if (!($effekt.equals(this.head_1064, other3925.head_1064))) return false;
+    if (!($effekt.equals(this.tail_1065, other3925.tail_1065))) return false;
+    return true;
+  }
+}
+
+class Error_1791 {
+  constructor(exception_1794, msg_1795) {
+    this.__tag = 0;
+    this.exception_1794 = exception_1794;
+    this.msg_1795 = msg_1795;
+  }
+  __reflect() {
+    return {
+      __tag: 0,
+      __name: "Error",
+      __data: [this.exception_1794, this.msg_1795]
+    };
+  }
+  __equals(other3926) {
+    if (!other3926) return false;
+    if (!($effekt.equals(this.__tag, other3926.__tag))) return false;
+    if (!($effekt.equals(this.exception_1794, other3926.exception_1794))) return false;
+    if (!($effekt.equals(this.msg_1795, other3926.msg_1795))) return false;
+    return true;
+  }
+}
+
+class Success_1796 {
+  constructor(a_1798) {
+    this.__tag = 1;
+    this.a_1798 = a_1798;
+  }
+  __reflect() {
+    return { __tag: 1, __name: "Success", __data: [this.a_1798] };
+  }
+  __equals(other3927) {
+    if (!other3927) return false;
+    if (!($effekt.equals(this.__tag, other3927.__tag))) return false;
+    if (!($effekt.equals(this.a_1798, other3927.a_1798))) return false;
     return true;
   }
 }
@@ -629,10 +737,10 @@ const $runtime = (function() {
 Object.assign($effekt, $runtime);
 
 
-function show$impl(obj) {
+$effekt.show = function(obj) {
   if (!!obj && !!obj.__reflect) {
     const meta = obj.__reflect()
-    return meta.__name + "(" + meta.__data.map(show$impl).join(", ") + ")"
+    return meta.__name + "(" + meta.__data.map($effekt.show).join(", ") + ")"
   }
   else if (!!obj && obj.__unit) {
     return "()";
@@ -641,7 +749,7 @@ function show$impl(obj) {
   }
 }
 
-function equals$impl(obj1, obj2) {
+$effekt.equals = function(obj1, obj2) {
   if (!!obj1.__equals) {
     return obj1.__equals(obj2)
   } else {
@@ -649,16 +757,89 @@ function equals$impl(obj1, obj2) {
   }
 }
 
-function println$impl(obj) {
-  //return $effekt.delayed(() => { console.log(show(obj)); return $effekt.unit; });
-  console.log(show$impl(obj)); return $effekt.unit;
+function compare$prim(n1, n2) {
+  if (n1 == n2) { return 0; }
+  else if (n1 > n2) { return 1; }
+  else { return -1; }
+}
+
+$effekt.compare = function(obj1, obj2) {
+  if ($effekt.equals(obj1, obj2)) { return 0; }
+
+  if (!!obj1 && !!obj2) {
+    if (!!obj1.__reflect && !!obj2.__reflect) {
+      const tagOrdering = compare$prim(obj1.__tag, obj2.__tag)
+      if (tagOrdering != 0) { return tagOrdering; }
+
+      const meta1 = obj1.__reflect().__data
+      const meta2 = obj2.__reflect().__data
+
+      const lengthOrdering = compare$prim(meta1.length, meta2.length)
+      if (lengthOrdering != 0) { return lengthOrdering; }
+
+      for (let i = 0; i < meta1.length; i++) {
+        const contentOrdering = $effekt.compare(meta1[i], meta2[i])
+        if (contentOrdering != 0) { return contentOrdering; }
+      }
+
+      return 0;
+    }
+  }
+
+  return compare$prim(obj1, obj2);
+}
+
+$effekt.println = function println$impl(str) {
+  console.log(str); return $effekt.unit;
 }
 
 $effekt.unit = { __unit: true }
 
-function main_1771() {
-  const tmp1191_1772 = println$impl("Hello world!");
-  return $effekt.pure(tmp1191_1772);
+
+function array$set(arr, index, value) {
+  arr[index] = value;
+  return $effekt.unit
 }
 
-module.exports = { main: () => main_1771().run() };
+
+
+function set$impl(ref, value) {
+  ref.value = value;
+  return $effekt.unit;
+}
+
+
+
+
+function setFillStyle(context, color) {
+   context.fillStyle = color;
+}
+
+
+
+function main_2699() {
+  const canvas4_3888 = document.getElementById('myCanvas');
+  const ctx5_3889 = (canvas4_3888).getContext('2d');
+  return $effekt.handleMonadic((p3928) => {
+    const Context$capability6_3894 = {
+      fillStyle_2713: (color7_3897) => {
+        return $effekt.shift(p3928, (resume8_3896) => {
+          const _9_3899 = setFillStyle(ctx5_3889, color7_3897);
+          return resume8_3896(42);
+        });
+      },
+      fillRect_2718: (x10_3901, y11_3902, width12_3903, height13_3904) => {
+        return $effekt.shift(p3928, (resume14_3900) => {
+          const _15_3905 = (ctx5_3889).fillRect(x10_3901, y11_3902, width12_3903, height13_3904);
+          return resume14_3900($effekt.unit);
+        });
+      }
+    };
+    return Context$capability6_3894.fillStyle_2713("blue").then((_333_3908) =>
+      Context$capability6_3894.fillRect_2718(50, 50, 200, 100));
+  });
+}
+
+(typeof module != "undefined" && module !== null ? module : {}).exports = $main = {
+  main: () => main_2699().run()
+};

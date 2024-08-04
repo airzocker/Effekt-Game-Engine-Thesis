@@ -1,3 +1,59 @@
-def main() = {
-  println("Hello world!")
+extern interface Draw
+extern resource draw: Draw
+
+extern type CanvasElement
+extern type CanvasRenderingContext2D
+
+interface Context {
+  def fillStyle(color: String): Int
+  def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
 }
+
+def blueRectangle() = {
+  do fillStyle("blue");
+  do fillRect(50, 50, 200, 100)
+}
+
+def randomNumber[R] { prog: Int => R }: R = prog(42)
+
+def defaultContext[R] { prog: () => R / Context }: R / {} = {
+  val canvas = getCanvas()
+  val ctx = canvas.getContext;
+
+  with handleContext(ctx);
+
+  prog()
+}
+
+def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} =
+  try { prog() }
+  with Context {
+    def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
+    def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
+  }
+
+def main() = {
+  with defaultContext;
+
+  blueRectangle()
+}
+
+extern pure def getCanvas(): CanvasElement =
+  js "document.getElementById('myCanvas')"
+
+extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
+  js "(${canvas}).getContext('2d')"
+
+extern draw def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
+  js "setFillStyle(${context}, ${color})"
+
+extern draw def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
+  js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
+
+extern js """
+
+function setFillStyle(context, color) {
+   context.fillStyle = color;
+}
+
+"""

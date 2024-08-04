@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-require('/home/airzocker/uni/bachelorarbeit/effekt-game-engine/src/./out/main.js').main()
+require('/home/airzocker/uni/bachelorarbeit/Effekt-Game-Engine-Thesis/out/main.js').main()
