@@ -1,17 +1,19 @@
-extern interface Draw
-extern resource draw: Draw
+import io
+import io/time
 
 extern type CanvasElement
 extern type CanvasRenderingContext2D
 
 interface Context {
+  def clearCanvas(): Unit
   def fillStyle(color: String): Int
   def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
 }
 
-def blueRectangle() = {
+def blueRectangle(t: Int) = {
+  do clearCanvas();
   do fillStyle("blue");
-  do fillRect(50, 50, 200, 100)
+  do fillRect(50 + t, 50, 200, 100)
 }
 
 def randomNumber[R] { prog: Int => R }: R = prog(42)
@@ -20,23 +22,33 @@ def defaultContext[R] { prog: () => R / Context }: R / {} = {
   val canvas = getCanvas()
   val ctx = canvas.getContext;
 
-  with handleContext(ctx);
+  with handleContext(canvas, ctx);
 
   prog()
 }
 
-def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} =
+def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} =
   try { prog() }
   with Context {
+    def clearCanvas() = { jsClearCanvas(canvas, ctx); resume(()) }
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
     def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
   }
 
-def main() = {
+def main() = eventloop(box {
   with defaultContext;
 
-  blueRectangle()
-}
+  val start = getTimeMillis();
+  var diff = 0;
+  while (diff < 5000) {
+    blueRectangle(diff / 5);
+    do await(do promise(box { wait(4) } ));
+    diff = getTimeMillis() - start
+  }
+} )
+
+extern pure def getTimeMillis(): Int =
+  js "Date.now()"
 
 extern pure def getCanvas(): CanvasElement =
   js "document.getElementById('myCanvas')"
@@ -44,10 +56,13 @@ extern pure def getCanvas(): CanvasElement =
 extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
   js "(${canvas}).getContext('2d')"
 
-extern draw def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
+extern io def jsClearCanvas(canvas: CanvasElement, context: CanvasRenderingContext2D): Unit =
+  js "(${context}).clearRect(0, 0, (${canvas}).width, (${canvas}).height)"
+
+extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
   js "setFillStyle(${context}, ${color})"
 
-extern draw def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
+extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
   js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
 
 extern js """
