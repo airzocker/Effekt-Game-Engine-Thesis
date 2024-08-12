@@ -5,15 +5,18 @@ extern type CanvasElement
 extern type CanvasRenderingContext2D
 
 interface Context {
-  def clearCanvas(): Unit
   def fillStyle(color: String): Int
   def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
 }
 
-def blueRectangle(t: Int) = {
-  do clearCanvas();
-  do fillStyle("blue");
-  do fillRect(50 + t, 50, 200, 100)
+def whiteRectangle(x: Int, y: Int, width: Int, height: Int) = {
+  do fillStyle("white");
+  do fillRect(x, y, width, height)
+}
+
+def blackBackground() = {
+  do fillStyle("black");
+  do fillRect(0, 0, getCanvasWidth(), getCanvasHeight())
 }
 
 def randomNumber[R] { prog: Int => R }: R = prog(42)
@@ -30,45 +33,158 @@ def defaultContext[R] { prog: () => R / Context }: R / {} = {
 def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} =
   try { prog() }
   with Context {
-    def clearCanvas() = { jsClearCanvas(canvas, ctx); resume(()) }
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
     def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
   }
 
 def main() = eventloop(box {
-  with defaultContext;
+  resizeCanvas();
+  registerEvents();
 
-  val start = getTimeMillis();
-  var diff = 0;
-  while (diff < 5000) {
-    blueRectangle(diff / 5);
-    do await(do promise(box { wait(4) } ));
-    diff = getTimeMillis() - start
+  with defaultContext;
+  
+  val windowHeight = getCanvasHeight();
+  val speed = 0.75 * windowHeight.toDouble;
+  val paddleHeight = round(0.1 * windowHeight.toDouble);
+  val paddleWidth = round(0.2 * paddleHeight.toDouble);
+  // Play-area width is = canvas height, so the paddle's outer edge is exactly on the Play-area limit
+  val paddlePosX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
+
+  val startTime = getTime();
+  var elapsedTime = 0.0;
+  var deltaTime = 0.0;
+
+  var paddlePosY = getCanvasHeight() / 2 - paddleHeight / 2;
+
+  while (not(isInputEscape())) {
+    do await(do promise(box { wait(0) } ));
+
+    val newElapsedTime = getTime() - startTime;
+    deltaTime = newElapsedTime - elapsedTime;
+    elapsedTime = newElapsedTime;
+
+    var direction = 0;
+    if (isInputUp()) {
+      direction = direction - 1;
+    }
+    if (isInputDown()) {
+      direction = direction + 1;
+    }
+    paddlePosY = paddlePosY + round(direction.toDouble * deltaTime * speed);
+    if (paddlePosY < 0) {
+      paddlePosY = 0;
+    } else if (paddlePosY > windowHeight - paddleHeight) {
+      paddlePosY = windowHeight - paddleHeight;
+    }
+
+    blackBackground();
+    whiteRectangle(paddlePosX, paddlePosY, paddleWidth, paddleHeight);
   }
 } )
 
-extern pure def getTimeMillis(): Int =
-  js "Date.now()"
+extern io def resizeCanvas(): Unit =
+  js "resizeCanvas()"
+
+extern io def registerEvents(): Unit =
+  js "registerEvents()"
+
+extern pure def getCanvasWidth(): Int =
+  js "getCanvasWidth()"
+
+extern pure def getCanvasHeight(): Int =
+  js "getCanvasHeight()"
+
+extern pure def isInputUp(): Bool =
+  js "isInputUp()"
+
+extern pure def isInputDown(): Bool =
+  js "isInputDown()"
+
+extern pure def isInputEscape(): Bool =
+  js "isInputEscape()"
+
+extern pure def getTime(): Double =
+  js "window.performance.now() / 1000.0"
 
 extern pure def getCanvas(): CanvasElement =
-  js "document.getElementById('myCanvas')"
+  js "getCanvas()"
 
 extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
   js "(${canvas}).getContext('2d')"
 
-extern io def jsClearCanvas(canvas: CanvasElement, context: CanvasRenderingContext2D): Unit =
-  js "(${context}).clearRect(0, 0, (${canvas}).width, (${canvas}).height)"
-
 extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
-  js "setFillStyle(${context}, ${color})"
+  js "(${context}).fillStyle = (${color})"
 
 extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
   js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
 
 extern js """
 
-function setFillStyle(context, color) {
-   context.fillStyle = color;
+const canvas = document.getElementById('myCanvas');
+let canvasWidth = 0;
+let canvasHeight = 0;
+
+let up = false;
+let down = false;
+let escape = false;
+
+function getCanvas() {
+  return canvas;
+}
+
+function resizeCanvas() {
+  canvasWidth = window.innerWidth;
+  canvasHeight = window.innerHeight;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+}
+
+function registerEvents() {
+  // Remove for now, because we don't want the canvas to be resizable during the game
+  //window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('keyup', onKeyUp, true);
+}
+
+function onKeyDown(event) {
+  if (event.code == 'ArrowUp') {
+    up = true;
+  }
+  if (event.code == 'ArrowDown') {
+    down = true;
+  }
+  if (event.code == 'Escape') {
+    escape = true;
+  }
+}
+
+function onKeyUp(event) {
+  if (event.code == 'ArrowUp') {
+    up = false;
+  }
+  if (event.code == 'ArrowDown') {
+    down = false;
+  }
+}
+
+function getCanvasWidth() {
+  return canvasWidth;
+}
+
+function getCanvasHeight() {
+  return canvasHeight;
+}
+
+function isInputUp() {
+  return up;
+}
+
+function isInputDown() {
+  return down;
+}
+
+function isInputEscape() {
+  return escape;
 }
 
 """
