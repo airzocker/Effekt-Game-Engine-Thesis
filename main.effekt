@@ -7,11 +7,17 @@ extern type CanvasRenderingContext2D
 interface Context {
   def fillStyle(color: String): Int
   def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
+  def fillCircle(x: Int, y: Int, radius: Int): Unit
 }
 
 def whiteRectangle(x: Int, y: Int, width: Int, height: Int) = {
   do fillStyle("white");
   do fillRect(x, y, width, height)
+}
+
+def whiteCircle(x: Int, y: Int, radius: Int) = {
+  do fillStyle("white");
+  do fillCircle(x, y, radius);
 }
 
 def blackBackground() = {
@@ -35,6 +41,7 @@ def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { pro
   with Context {
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
     def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
+    def fillCircle(x, y, radius) = { jsFillCircle(ctx, x, y, radius); resume(()) }
   }
 
 def main() = eventloop(box {
@@ -44,17 +51,31 @@ def main() = eventloop(box {
   with defaultContext;
   
   val windowHeight = getCanvasHeight();
-  val speed = 0.75 * windowHeight.toDouble;
+  val paddleSpeed = 0.75 * windowHeight.toDouble;
   val paddleHeight = round(0.1 * windowHeight.toDouble);
   val paddleWidth = round(0.2 * paddleHeight.toDouble);
   // Play-area width is = canvas height, so the paddle's outer edge is exactly on the Play-area limit
-  val paddlePosX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
+  val playAreaMinX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
+  val playAreaMaxX = round(getCanvasWidth().toDouble / 2.0 + 0.5 * windowHeight.toDouble);
+  val paddle1PosX = playAreaMinX;
+  val paddle2PosX = playAreaMaxX - paddleWidth;
+  
+  val ballSpeed = 1.25 * paddleSpeed;
+  val ballRadius = round(0.01 * windowHeight.toDouble);
+  val ballStartPosX = getCanvasWidth() / 2;
+  val ballStartPosY = windowHeight / 2;
 
   val startTime = getTime();
   var elapsedTime = 0.0;
   var deltaTime = 0.0;
 
-  var paddlePosY = getCanvasHeight() / 2 - paddleHeight / 2;
+  var paddle1PosY = windowHeight / 2 - paddleHeight / 2;
+  var paddle2PosY = windowHeight / 2 - paddleHeight / 2;
+  
+  var ballPosX = ballStartPosX;
+  var ballPosY = ballStartPosY;
+  var ballDirX = 1.0 / sqrt(1.0);
+  var ballDirY = 1.0 / sqrt(1.0);
 
   while (not(isInputEscape())) {
     do await(do promise(box { wait(0) } ));
@@ -63,22 +84,54 @@ def main() = eventloop(box {
     deltaTime = newElapsedTime - elapsedTime;
     elapsedTime = newElapsedTime;
 
-    var direction = 0;
-    if (isInputUp()) {
-      direction = direction - 1;
+    var direction1 = 0;
+    var direction2 = 0;
+    if (isInput1Up()) {
+      direction1 = direction1 - 1;
     }
-    if (isInputDown()) {
-      direction = direction + 1;
+    if (isInput1Down()) {
+      direction1 = direction1 + 1;
     }
-    paddlePosY = paddlePosY + round(direction.toDouble * deltaTime * speed);
-    if (paddlePosY < 0) {
-      paddlePosY = 0;
-    } else if (paddlePosY > windowHeight - paddleHeight) {
-      paddlePosY = windowHeight - paddleHeight;
+    if (isInput2Up()) {
+      direction2 = direction2 - 1;
+    }
+    if (isInput2Down()) {
+      direction2 = direction2 + 1;
+    }
+    paddle1PosY = paddle1PosY + round(direction1.toDouble * deltaTime * paddleSpeed);
+    paddle2PosY = paddle2PosY + round(direction2.toDouble * deltaTime * paddleSpeed);
+    if (paddle1PosY < 0) {
+      paddle1PosY = 0;
+    } else if (paddle1PosY > windowHeight - paddleHeight) {
+      paddle1PosY = windowHeight - paddleHeight;
+    }
+    if (paddle2PosY < 0) {
+      paddle2PosY = 0;
+    } else if (paddle2PosY > windowHeight - paddleHeight) {
+      paddle2PosY = windowHeight - paddleHeight;
+    }
+    
+    ballPosX = ballPosX + round(ballDirX * deltaTime * ballSpeed);
+    ballPosY = ballPosY + round(ballDirY * deltaTime * ballSpeed);
+    if (ballPosX < playAreaMinX + ballRadius) {
+      ballPosX = playAreaMinX + ballRadius;
+      ballDirX = -1.0 * ballDirX;
+    } else if (ballPosX > playAreaMaxX - ballRadius) {
+      ballPosX = playAreaMaxX - ballRadius;
+      ballDirX = -1.0 * ballDirX;
+    }
+    if (ballPosY < ballRadius) {
+      ballPosY = ballRadius;
+      ballDirY = -1.0 * ballDirY;
+    } else if (ballPosY > windowHeight - ballRadius) {
+      ballPosY = windowHeight - ballRadius;
+      ballDirY = -1.0 * ballDirY;
     }
 
     blackBackground();
-    whiteRectangle(paddlePosX, paddlePosY, paddleWidth, paddleHeight);
+    whiteRectangle(paddle1PosX, paddle1PosY, paddleWidth, paddleHeight);
+    whiteRectangle(paddle2PosX, paddle2PosY, paddleWidth, paddleHeight);
+    whiteCircle(ballPosX, ballPosY, ballRadius);
   }
 } )
 
@@ -94,11 +147,17 @@ extern pure def getCanvasWidth(): Int =
 extern pure def getCanvasHeight(): Int =
   js "getCanvasHeight()"
 
-extern pure def isInputUp(): Bool =
-  js "isInputUp()"
+extern pure def isInput1Up(): Bool =
+  js "isInput1Up()"
 
-extern pure def isInputDown(): Bool =
-  js "isInputDown()"
+extern pure def isInput1Down(): Bool =
+  js "isInput1Down()"
+
+extern pure def isInput2Up(): Bool =
+  js "isInput2Up()"
+
+extern pure def isInput2Down(): Bool =
+  js "isInput2Down()"
 
 extern pure def isInputEscape(): Bool =
   js "isInputEscape()"
@@ -118,14 +177,23 @@ extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Uni
 extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
   js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
 
+extern io def jsFillCircle(context: CanvasRenderingContext2D, x: Int, y: Int, radius: Int): Unit =
+  js """
+    (${context}).beginPath();
+    (${context}).arc(${x}, ${y}, ${radius}, 0, 2 * Math.PI);
+    (${context}).fill();
+  """
+
 extern js """
 
 const canvas = document.getElementById('myCanvas');
 let canvasWidth = 0;
 let canvasHeight = 0;
 
-let up = false;
-let down = false;
+let up1 = false;
+let down1 = false;
+let up2 = false;
+let down2 = false;
 let escape = false;
 
 function getCanvas() {
@@ -147,11 +215,17 @@ function registerEvents() {
 }
 
 function onKeyDown(event) {
+  if (event.code == 'KeyW') {
+    up1 = true;
+  }
+  if (event.code == 'KeyS') {
+    down1 = true;
+  }
   if (event.code == 'ArrowUp') {
-    up = true;
+    up2 = true;
   }
   if (event.code == 'ArrowDown') {
-    down = true;
+    down2 = true;
   }
   if (event.code == 'Escape') {
     escape = true;
@@ -159,11 +233,17 @@ function onKeyDown(event) {
 }
 
 function onKeyUp(event) {
+  if (event.code == 'KeyW') {
+    up1 = false;
+  }
+  if (event.code == 'KeyS') {
+    down1 = false;
+  }
   if (event.code == 'ArrowUp') {
-    up = false;
+    up2 = false;
   }
   if (event.code == 'ArrowDown') {
-    down = false;
+    down2 = false;
   }
 }
 
@@ -175,12 +255,20 @@ function getCanvasHeight() {
   return canvasHeight;
 }
 
-function isInputUp() {
-  return up;
+function isInput1Up() {
+  return up1;
 }
 
-function isInputDown() {
-  return down;
+function isInput1Down() {
+  return down1;
+}
+
+function isInput2Up() {
+  return up2;
+}
+
+function isInput2Down() {
+  return down2;
 }
 
 function isInputEscape() {
