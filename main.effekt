@@ -25,8 +25,6 @@ def blackBackground() = {
   do fillRect(0, 0, getCanvasWidth(), getCanvasHeight())
 }
 
-def randomNumber[R] { prog: Int => R }: R = prog(42)
-
 def defaultContext[R] { prog: () => R / Context }: R / {} = {
   val canvas = getCanvas()
   val ctx = canvas.getContext;
@@ -36,13 +34,18 @@ def defaultContext[R] { prog: () => R / Context }: R / {} = {
   prog()
 }
 
-def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} =
+def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} = {
   try { prog() }
   with Context {
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
     def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
     def fillCircle(x, y, radius) = { jsFillCircle(ctx, x, y, radius); resume(()) }
   }
+}
+
+def vectorLength(x: Double, y: Double): Double = {
+  sqrt(x * x + y * y)
+}
 
 def main() = eventloop(box {
   resizeCanvas();
@@ -51,31 +54,34 @@ def main() = eventloop(box {
   with defaultContext;
   
   val windowHeight = getCanvasHeight();
-  val paddleSpeed = 0.75 * windowHeight.toDouble;
-  val paddleHeight = round(0.1 * windowHeight.toDouble);
-  val paddleWidth = round(0.2 * paddleHeight.toDouble);
+  val paddleSpeed = 0.8 * windowHeight.toDouble;
+  val paddleHeight = round(0.05 * windowHeight.toDouble);
+  val paddleWidth = round(0.3 * paddleHeight.toDouble);
   // Play-area width is = canvas height, so the paddle's outer edge is exactly on the Play-area limit
   val playAreaMinX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
   val playAreaMaxX = round(getCanvasWidth().toDouble / 2.0 + 0.5 * windowHeight.toDouble);
   val paddle1PosX = playAreaMinX;
   val paddle2PosX = playAreaMaxX - paddleWidth;
+  val paddleStartPosY = windowHeight / 2 - paddleHeight / 2;
   
-  val ballSpeed = 1.25 * paddleSpeed;
-  val ballRadius = round(0.01 * windowHeight.toDouble);
+  val ballSpeed = 0.75 * paddleSpeed;
+  val ballRadius = round(0.0075 * windowHeight.toDouble);
   val ballStartPosX = getCanvasWidth() / 2;
   val ballStartPosY = windowHeight / 2;
+  val ballStartDirX = 1.0 / sqrt(1.0);
+  val ballStartDirY = 1.0 / sqrt(1.0);
 
   val startTime = getTime();
   var elapsedTime = 0.0;
   var deltaTime = 0.0;
 
-  var paddle1PosY = windowHeight / 2 - paddleHeight / 2;
-  var paddle2PosY = windowHeight / 2 - paddleHeight / 2;
+  var paddle1PosY = paddleStartPosY;
+  var paddle2PosY = paddleStartPosY;
   
   var ballPosX = ballStartPosX;
   var ballPosY = ballStartPosY;
-  var ballDirX = 1.0 / sqrt(1.0);
-  var ballDirY = 1.0 / sqrt(1.0);
+  var ballDirX = ballStartDirX;
+  var ballDirY = ballStartDirY;
 
   while (not(isInputEscape())) {
     do await(do promise(box { wait(0) } ));
@@ -113,19 +119,44 @@ def main() = eventloop(box {
     
     ballPosX = ballPosX + round(ballDirX * deltaTime * ballSpeed);
     ballPosY = ballPosY + round(ballDirY * deltaTime * ballSpeed);
-    if (ballPosX < playAreaMinX + ballRadius) {
-      ballPosX = playAreaMinX + ballRadius;
-      ballDirX = -1.0 * ballDirX;
-    } else if (ballPosX > playAreaMaxX - ballRadius) {
-      ballPosX = playAreaMaxX - ballRadius;
-      ballDirX = -1.0 * ballDirX;
-    }
     if (ballPosY < ballRadius) {
       ballPosY = ballRadius;
       ballDirY = -1.0 * ballDirY;
     } else if (ballPosY > windowHeight - ballRadius) {
       ballPosY = windowHeight - ballRadius;
       ballDirY = -1.0 * ballDirY;
+    }
+
+    var checkPaddleX = paddle1PosX;
+    var checkPaddleY = paddle1PosY;
+    if (ballDirX > 0.0) {
+      checkPaddleX = paddle2PosX;
+      checkPaddleY = paddle2PosY;
+    }
+    checkPaddleX = checkPaddleX + paddleWidth / 2;
+    checkPaddleY = checkPaddleY + paddleHeight / 2;
+    val diffX = (ballPosX - checkPaddleX).toDouble;
+    val diffY = (ballPosY - checkPaddleY).toDouble;
+    val dist = vectorLength(diffX, diffY);
+    if (dist < ballRadius.toDouble + paddleHeight.toDouble / 2.0) {
+      ballDirX = diffX / dist;
+      ballDirY = diffY / dist;
+    }
+
+    // 0 means continue, 1 or -1 indicates which side got a point
+    var resetState = 0;
+    if (ballPosX < playAreaMinX + ballRadius && ballDirX < 0.0) {
+      resetState = 1;
+    } else if (ballPosX > playAreaMaxX - ballRadius && ballDirX > 0.0) {
+      resetState = -1;
+    }
+    if (resetState != 0) {
+      paddle1PosY = paddleStartPosY;
+      paddle2PosY = paddleStartPosY;
+      ballPosX = ballStartPosX;
+      ballPosY = ballStartPosY;
+      ballDirX = resetState.toDouble * ballStartDirX;
+      ballDirY = ballStartDirY;
     }
 
     blackBackground();
