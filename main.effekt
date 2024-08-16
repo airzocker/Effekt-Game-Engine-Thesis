@@ -8,11 +8,13 @@ interface Context {
   def fillStyle(color: String): Int
   def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
   def fillCircle(x: Int, y: Int, radius: Int): Unit
+  def fillText(text: String, x: Int, y: Int): Unit
+  def initFont(fontSize: Int): Unit
 }
 
 def whiteRectangle(x: Int, y: Int, width: Int, height: Int) = {
   do fillStyle("white");
-  do fillRect(x, y, width, height)
+  do fillRect(x, y, width, height);
 }
 
 def whiteCircle(x: Int, y: Int, radius: Int) = {
@@ -22,7 +24,15 @@ def whiteCircle(x: Int, y: Int, radius: Int) = {
 
 def blackBackground() = {
   do fillStyle("black");
-  do fillRect(0, 0, getCanvasWidth(), getCanvasHeight())
+  do fillRect(0, 0, getCanvasWidth(), getCanvasHeight());
+}
+
+def whiteText(text: String, x: Int, y: Int) = {
+  do fillText(text, x, y);
+}
+
+def setFontSize(fontSize: Int) = {
+  do initFont(fontSize);
 }
 
 def defaultContext[R] { prog: () => R / Context }: R / {} = {
@@ -40,6 +50,8 @@ def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { pro
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
     def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
     def fillCircle(x, y, radius) = { jsFillCircle(ctx, x, y, radius); resume(()) }
+    def fillText(text, x, y) = { jsFillText(ctx, text, x, y); resume(()) }
+    def initFont(fontSize) = { jsInitFont(ctx, fontSize); resume(()) }
   }
 }
 
@@ -53,10 +65,16 @@ def main() = eventloop(box {
 
   with defaultContext;
   
+  var score1 = 0;
+  var score2 = 0;
+  
   val windowHeight = getCanvasHeight();
+
+  setFontSize(windowHeight / 12);
+
   val paddleSpeed = 0.8 * windowHeight.toDouble;
-  val paddleHeight = round(0.05 * windowHeight.toDouble);
-  val paddleWidth = round(0.3 * paddleHeight.toDouble);
+  val paddleHeight = round(0.065 * windowHeight.toDouble);
+  val paddleWidth = round(0.35 * paddleHeight.toDouble);
   // Play-area width is = canvas height, so the paddle's outer edge is exactly on the Play-area limit
   val playAreaMinX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
   val playAreaMaxX = round(getCanvasWidth().toDouble / 2.0 + 0.5 * windowHeight.toDouble);
@@ -64,7 +82,7 @@ def main() = eventloop(box {
   val paddle2PosX = playAreaMaxX - paddleWidth;
   val paddleStartPosY = windowHeight / 2 - paddleHeight / 2;
   
-  val ballSpeed = 0.75 * paddleSpeed;
+  val ballSpeed = 0.65 * paddleSpeed;
   val ballRadius = round(0.0075 * windowHeight.toDouble);
   val ballStartPosX = getCanvasWidth() / 2;
   val ballStartPosY = windowHeight / 2;
@@ -151,6 +169,11 @@ def main() = eventloop(box {
       resetState = -1;
     }
     if (resetState != 0) {
+      if (resetState == -1) {
+        score1 = score1 + 1;
+      } else {
+        score2 = score2 + 1;
+      }
       paddle1PosY = paddleStartPosY;
       paddle2PosY = paddleStartPosY;
       ballPosX = ballStartPosX;
@@ -163,6 +186,8 @@ def main() = eventloop(box {
     whiteRectangle(paddle1PosX, paddle1PosY, paddleWidth, paddleHeight);
     whiteRectangle(paddle2PosX, paddle2PosY, paddleWidth, paddleHeight);
     whiteCircle(ballPosX, ballPosY, ballRadius);
+    whiteText(score1.show, playAreaMinX + (playAreaMaxX - playAreaMinX) / 4, windowHeight / 8)
+    whiteText(score2.show, playAreaMaxX - (playAreaMaxX - playAreaMinX) / 4, windowHeight / 8)
   }
 } )
 
@@ -209,11 +234,13 @@ extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, widt
   js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
 
 extern io def jsFillCircle(context: CanvasRenderingContext2D, x: Int, y: Int, radius: Int): Unit =
-  js """
-    (${context}).beginPath();
-    (${context}).arc(${x}, ${y}, ${radius}, 0, 2 * Math.PI);
-    (${context}).fill();
-  """
+  js "fillCircle(${context}, ${x}, ${y}, ${radius})"
+
+extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Int): Unit =
+  js "initFont(${context}, ${fontSize})"
+
+extern io def jsFillText(context: CanvasRenderingContext2D, text: String, x: Int, y: Int): Unit =
+  js "(${context}).fillText(${text}, ${x}, ${y})"
 
 extern js """
 
@@ -229,6 +256,17 @@ let escape = false;
 
 function getCanvas() {
   return canvas;
+}
+
+function initFont(ctx, fontSize) {
+  ctx.font = 'bold ' + fontSize + 'px sans';
+  ctx.textAlign = 'center';
+}
+
+function fillCircle(context, x, y, radius) {
+  context.beginPath();
+  context.arc(x, y, radius, 0, 2 * Math.PI);
+  context.fill();
 }
 
 function resizeCanvas() {
