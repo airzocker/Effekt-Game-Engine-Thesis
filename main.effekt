@@ -1,6 +1,8 @@
 import io
 import io/time
 
+import game_engine_lib/vector
+
 extern type CanvasElement
 extern type CanvasRenderingContext2D
 
@@ -60,6 +62,8 @@ def vectorLength(x: Double, y: Double): Double = {
 }
 
 def main() = eventloop(box {
+  val testVec = Vector(0.0, 1.0);
+
   resizeCanvas();
   registerEvents();
 
