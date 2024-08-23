@@ -8,29 +8,29 @@ extern type CanvasRenderingContext2D
 
 interface Context {
   def fillStyle(color: String): Int
-  def fillRect(x: Int, y: Int, width: Int, height: Int): Unit
-  def fillCircle(x: Int, y: Int, radius: Int): Unit
-  def fillText(text: String, x: Int, y: Int): Unit
+  def fillRect(pos: Vector2Int, size: Vector2Int): Unit
+  def fillCircle(pos: Vector2Int, radius: Int): Unit
+  def fillText(pos: Vector2Int, text: String): Unit
   def initFont(fontSize: Int): Unit
 }
 
-def whiteRectangle(x: Int, y: Int, width: Int, height: Int) = {
+def whiteRectangle(pos: Vector2Int, size: Vector2Int) = {
   do fillStyle("white");
-  do fillRect(x, y, width, height);
+  do fillRect(pos, size);
 }
 
-def whiteCircle(x: Int, y: Int, radius: Int) = {
+def whiteCircle(pos: Vector2Int, radius: Int) = {
   do fillStyle("white");
-  do fillCircle(x, y, radius);
+  do fillCircle(pos, radius);
 }
 
 def blackBackground() = {
   do fillStyle("black");
-  do fillRect(0, 0, getCanvasWidth(), getCanvasHeight());
+  do fillRect(Vector2Int(0, 0), Vector2Int(getCanvasWidth(), getCanvasHeight()));
 }
 
-def whiteText(text: String, x: Int, y: Int) = {
-  do fillText(text, x, y);
+def whiteText(pos: Vector2Int, text: String) = {
+  do fillText(pos, text);
 }
 
 def setFontSize(fontSize: Int) = {
@@ -50,20 +50,14 @@ def handleContext[R](canvas: CanvasElement, ctx: CanvasRenderingContext2D) { pro
   try { prog() }
   with Context {
     def fillStyle(color) = { jsFillStyle(ctx, color); resume(42) }
-    def fillRect(x, y, width, height) = { jsFillRect(ctx, x, y, width, height); resume(()) }
-    def fillCircle(x, y, radius) = { jsFillCircle(ctx, x, y, radius); resume(()) }
-    def fillText(text, x, y) = { jsFillText(ctx, text, x, y); resume(()) }
+    def fillRect(pos, size) = { jsFillRect(ctx, pos.x, pos.y, size.x, size.y); resume(()) }
+    def fillCircle(pos, radius) = { jsFillCircle(ctx, pos.x, pos.y, radius); resume(()) }
+    def fillText(pos, text) = { jsFillText(ctx, pos.x, pos.y, text); resume(()) }
     def initFont(fontSize) = { jsInitFont(ctx, fontSize); resume(()) }
   }
 }
 
-def vectorLength(x: Double, y: Double): Double = {
-  sqrt(x * x + y * y)
-}
-
 def main() = eventloop(box {
-  val testVec = Vector(0.0, 1.0);
-
   resizeCanvas();
   registerEvents();
 
@@ -72,40 +66,34 @@ def main() = eventloop(box {
   var score1 = 0;
   var score2 = 0;
   
-  val windowHeight = getCanvasHeight();
+  val playAreaSize = Vector2Int(getCanvasHeight(), getCanvasHeight());
 
-  setFontSize(windowHeight / 12);
+  setFontSize(playAreaSize.y / 12);
 
-  val paddleSpeed = 0.8 * windowHeight.toDouble;
-  val paddleHeight = round(0.065 * windowHeight.toDouble);
-  val paddleWidth = round(0.35 * paddleHeight.toDouble);
+  val paddleSpeed = 0.8 * playAreaSize.y.toDouble();
+  val paddleSize: Vector2Int = Vector2(0.02275 * playAreaSize.y.toDouble(), 0.065 * playAreaSize.y.toDouble()).round();
   // Play-area width is = canvas height, so the paddle's outer edge is exactly on the Play-area limit
-  val playAreaMinX = round(getCanvasWidth().toDouble / 2.0 - 0.5 * windowHeight.toDouble);
-  val playAreaMaxX = round(getCanvasWidth().toDouble / 2.0 + 0.5 * windowHeight.toDouble);
-  val paddle1PosX = playAreaMinX;
-  val paddle2PosX = playAreaMaxX - paddleWidth;
-  val paddleStartPosY = windowHeight / 2 - paddleHeight / 2;
-  
+  val playAreaMin: Vector2Int = Vector2(getCanvasWidth().toDouble() / 2.0 - 0.5 * playAreaSize.x.toDouble(), 0.0).round();
+  val playAreaMax: Vector2Int = Vector2(getCanvasWidth().toDouble() / 2.0 + 0.5 * playAreaSize.x.toDouble(), playAreaSize.y.toDouble()).round();
+  val paddleStartPosY = playAreaSize.y.toDouble() / 2.0 - paddleSize.y.toDouble() / 2.0;
+
   val ballSpeed = 0.65 * paddleSpeed;
-  val ballRadius = round(0.0075 * windowHeight.toDouble);
-  val ballStartPosX = getCanvasWidth() / 2;
-  val ballStartPosY = windowHeight / 2;
-  val ballStartDirX = 1.0 / sqrt(1.0);
-  val ballStartDirY = 1.0 / sqrt(1.0);
+  val ballRadius = round(0.0075 * playAreaSize.y.toDouble());
+  val ballStartPos = Vector2(getCanvasWidth().toDouble() / 2.0, playAreaSize.y.toDouble() / 2.0);
+  val ballStartDir = Vector2(1.0, 1.0).normalize();
 
   val startTime = getTime();
   var elapsedTime = 0.0;
   var deltaTime = 0.0;
 
-  var paddle1PosY = paddleStartPosY;
-  var paddle2PosY = paddleStartPosY;
+  var paddle1Pos = Vector2(playAreaMin.x.toDouble(), paddleStartPosY);
+  var paddle2Pos = Vector2(playAreaMax.x.toDouble() - paddleSize.x.toDouble(), paddleStartPosY);
   
-  var ballPosX = ballStartPosX;
-  var ballPosY = ballStartPosY;
-  var ballDirX = ballStartDirX;
-  var ballDirY = ballStartDirY;
+  var ballPos = ballStartPos;
+  var ballDir = ballStartDir;
 
   while (not(isInputEscape())) {
+    // Loop needs wait() to give control flow back, otherwise JavaScript events will never be detected
     do await(do promise(box { wait(0) } ));
 
     val newElapsedTime = getTime() - startTime;
@@ -126,50 +114,43 @@ def main() = eventloop(box {
     if (isInput2Down()) {
       direction2 = direction2 + 1;
     }
-    paddle1PosY = paddle1PosY + round(direction1.toDouble * deltaTime * paddleSpeed);
-    paddle2PosY = paddle2PosY + round(direction2.toDouble * deltaTime * paddleSpeed);
-    if (paddle1PosY < 0) {
-      paddle1PosY = 0;
-    } else if (paddle1PosY > windowHeight - paddleHeight) {
-      paddle1PosY = windowHeight - paddleHeight;
+    paddle1Pos = paddle1Pos.setY(paddle1Pos.y + direction1.toDouble() * deltaTime * paddleSpeed);
+    paddle2Pos = paddle2Pos.setY(paddle2Pos.y + direction2.toDouble() * deltaTime * paddleSpeed);
+    if (paddle1Pos.y < playAreaMin.y.toDouble()) {
+      paddle1Pos = paddle1Pos.setY(playAreaMin.y.toDouble());
+    } else if (paddle1Pos.y > (playAreaMax.y - paddleSize.y).toDouble()) {
+      paddle1Pos = paddle1Pos.setY((playAreaMax.y - paddleSize.y).toDouble());
     }
-    if (paddle2PosY < 0) {
-      paddle2PosY = 0;
-    } else if (paddle2PosY > windowHeight - paddleHeight) {
-      paddle2PosY = windowHeight - paddleHeight;
+    if (paddle2Pos.y < playAreaMin.y.toDouble()) {
+      paddle2Pos = paddle2Pos.setY(playAreaMin.y.toDouble());
+    } else if (paddle2Pos.y > (playAreaMax.y - paddleSize.y).toDouble()) {
+      paddle2Pos = paddle2Pos.setY((playAreaMax.y - paddleSize.y).toDouble());
     }
     
-    ballPosX = ballPosX + round(ballDirX * deltaTime * ballSpeed);
-    ballPosY = ballPosY + round(ballDirY * deltaTime * ballSpeed);
-    if (ballPosY < ballRadius) {
-      ballPosY = ballRadius;
-      ballDirY = -1.0 * ballDirY;
-    } else if (ballPosY > windowHeight - ballRadius) {
-      ballPosY = windowHeight - ballRadius;
-      ballDirY = -1.0 * ballDirY;
+    ballPos = ballPos + ballDir * deltaTime * ballSpeed;
+    if (ballPos.y < (playAreaMin.y + ballRadius).toDouble()) {
+      ballPos = ballPos.setY(ballRadius.toDouble());
+      ballDir = ballDir.setY(-1.0 * ballDir.y);
+    } else if (ballPos.y > (playAreaMax.y - ballRadius).toDouble()) {
+      ballPos = ballPos.setY((playAreaSize.y - ballRadius).toDouble());
+      ballDir = ballDir.setY(-1.0 * ballDir.y);
     }
 
-    var checkPaddleX = paddle1PosX;
-    var checkPaddleY = paddle1PosY;
-    if (ballDirX > 0.0) {
-      checkPaddleX = paddle2PosX;
-      checkPaddleY = paddle2PosY;
+    var checkPaddle = paddle1Pos;
+    if (ballDir.x > 0.0) {
+      checkPaddle = paddle2Pos;
     }
-    checkPaddleX = checkPaddleX + paddleWidth / 2;
-    checkPaddleY = checkPaddleY + paddleHeight / 2;
-    val diffX = (ballPosX - checkPaddleX).toDouble;
-    val diffY = (ballPosY - checkPaddleY).toDouble;
-    val dist = vectorLength(diffX, diffY);
-    if (dist < ballRadius.toDouble + paddleHeight.toDouble / 2.0) {
-      ballDirX = diffX / dist;
-      ballDirY = diffY / dist;
+    checkPaddle = checkPaddle + paddleSize.toVector2() / 2.0;
+    val diff = ballPos - checkPaddle;
+    if (diff.length() < ballRadius.toDouble() + paddleSize.y.toDouble() / 2.0) {
+      ballDir = diff.normalize();
     }
 
     // 0 means continue, 1 or -1 indicates which side got a point
     var resetState = 0;
-    if (ballPosX < playAreaMinX + ballRadius && ballDirX < 0.0) {
+    if (ballPos.x < (playAreaMin.x + ballRadius).toDouble() && ballDir.x < 0.0) {
       resetState = 1;
-    } else if (ballPosX > playAreaMaxX - ballRadius && ballDirX > 0.0) {
+    } else if (ballPos.x > (playAreaMax.x - ballRadius).toDouble() && ballDir.x > 0.0) {
       resetState = -1;
     }
     if (resetState != 0) {
@@ -178,20 +159,18 @@ def main() = eventloop(box {
       } else {
         score2 = score2 + 1;
       }
-      paddle1PosY = paddleStartPosY;
-      paddle2PosY = paddleStartPosY;
-      ballPosX = ballStartPosX;
-      ballPosY = ballStartPosY;
-      ballDirX = resetState.toDouble * ballStartDirX;
-      ballDirY = ballStartDirY;
+      paddle1Pos = paddle1Pos.setY(paddleStartPosY);
+      paddle2Pos = paddle2Pos.setY(paddleStartPosY);
+      ballPos = ballStartPos;
+      ballDir = Vector2(resetState.toDouble() * ballStartDir.x, ballStartDir.y);
     }
 
     blackBackground();
-    whiteRectangle(paddle1PosX, paddle1PosY, paddleWidth, paddleHeight);
-    whiteRectangle(paddle2PosX, paddle2PosY, paddleWidth, paddleHeight);
-    whiteCircle(ballPosX, ballPosY, ballRadius);
-    whiteText(score1.show, playAreaMinX + (playAreaMaxX - playAreaMinX) / 4, windowHeight / 8)
-    whiteText(score2.show, playAreaMaxX - (playAreaMaxX - playAreaMinX) / 4, windowHeight / 8)
+    whiteRectangle(paddle1Pos.round(), paddleSize);
+    whiteRectangle(paddle2Pos.round(), paddleSize);
+    whiteCircle(ballPos.round(), ballRadius);
+    whiteText(Vector2Int(playAreaMin.x + (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), score1.show());
+    whiteText(Vector2Int(playAreaMax.x - (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), score2.show());
   }
 } )
 
@@ -243,7 +222,7 @@ extern io def jsFillCircle(context: CanvasRenderingContext2D, x: Int, y: Int, ra
 extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Int): Unit =
   js "initFont(${context}, ${fontSize})"
 
-extern io def jsFillText(context: CanvasRenderingContext2D, text: String, x: Int, y: Int): Unit =
+extern io def jsFillText(context: CanvasRenderingContext2D, x: Int, y: Int, text: String): Unit =
   js "(${context}).fillText(${text}, ${x}, ${y})"
 
 extern js """

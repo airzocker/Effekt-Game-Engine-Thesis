@@ -1,1 +1,131 @@
-record Vector(x: Double, y: Double)
+record Vector2(x: Double, y: Double)
+
+def setX(v: Vector2, d: Double): Vector2 = {
+  Vector2(d, v.y)
+}
+
+def setY(v: Vector2, d: Double): Vector2 = {
+  Vector2(v.x, d)
+}
+
+def infixAdd(v1: Vector2, v2: Vector2): Vector2 = {
+  Vector2(v1.x + v2.x, v1.y + v2.y)
+}
+
+def infixAdd(v: Vector2, d: Double): Vector2 = {
+  Vector2(v.x + d, v.y + d)
+}
+
+def infixSub(v1: Vector2, v2: Vector2): Vector2 = {
+  Vector2(v1.x - v2.x, v1.y - v2.y)
+}
+
+def infixSub(v: Vector2, d: Double): Vector2 = {
+  Vector2(v.x - d, v.y - d)
+}
+
+def infixMul(v: Vector2, d: Double): Vector2 = {
+  Vector2(v.x * d, v.y * d)
+}
+
+// Scalar (dot) product
+def infixMul(v1: Vector2, v2: Vector2): Double = {
+  v1.x * v2.x + v1.y * v2.y
+}
+
+def infixDiv(v: Vector2, d: Double): Vector2 = {
+  Vector2(v.x / d, v.y / d)
+}
+
+def length(v: Vector2): Double = {
+  sqrt(v.x * v.x + v.y * v.y)
+}
+
+def normalize(v: Vector2): Vector2 = {
+  val l = v.length();
+  if (l == 0.0) {
+    Vector2(0.0, 0.0)
+  } else {
+    v / l
+  }
+}
+
+def round(v: Vector2): Vector2 = {
+  Vector2(round(v.x).toDouble, round(v.y).toDouble)
+}
+
+def ceil(v: Vector2): Vector2 = {
+  Vector2(ceil(v.x).toDouble, ceil(v.y).toDouble)
+}
+
+def floor(v: Vector2): Vector2 = {
+  Vector2(floor(v.x).toDouble, floor(v.y).toDouble)
+}
+
+record Vector2Int(x: Int, y: Int)
+
+def setX(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(d, v.y)
+}
+
+def setY(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(v.x, d)
+}
+
+def toVector2(v: Vector2Int): Vector2 = {
+  Vector2(v.x.toDouble(), v.y.toDouble())
+}
+
+def infixAdd(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
+  Vector2Int(v1.x + v2.x, v1.y + v2.y)
+}
+
+def infixAdd(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(v.x + d, v.y + d)
+}
+
+def infixSub(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
+  Vector2Int(v1.x - v2.x, v1.y - v2.y)
+}
+
+def infixSub(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(v.x - d, v.y - d)
+}
+
+def infixMul(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(v.x * d, v.y * d)
+}
+
+// Scalar (dot) product
+def infixMul(v1: Vector2Int, v2: Vector2Int): Int = {
+  v1.x * v2.x + v1.y * v2.y
+}
+
+def infixDiv(v: Vector2Int, d: Int): Vector2Int = {
+  Vector2Int(v.x / d, v.y / d)
+}
+
+def length(v: Vector2Int): Double = {
+  sqrt((v.x * v.x + v.y * v.y).toDouble)
+}
+
+def normalize(v: Vector2Int): Vector2 = {
+  val l = v.length();
+  if (l == 0.0) {
+    Vector2(0.0, 0.0)
+  } else {
+    v.toVector2() / l
+  }
+}
+
+def round(v: Vector2): Vector2Int = {
+  Vector2Int(round(v.x), round(v.y))
+}
+
+def ceil(v: Vector2): Vector2Int = {
+  Vector2Int(ceil(v.x), ceil(v.y))
+}
+
+def floor(v: Vector2): Vector2Int = {
+  Vector2Int(floor(v.x), floor(v.y))
+}
