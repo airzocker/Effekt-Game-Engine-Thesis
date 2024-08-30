@@ -1,0 +1,219 @@
+import game_engine_lib/core
+import game_engine_lib/vector
+
+extern type CanvasElement
+extern type CanvasRenderingContext2D
+
+interface Context {
+  def fillStyle(color: String): Unit
+  def fillRect(pos: Vector2Int, size: Vector2Int): Unit
+  def fillCircle(pos: Vector2Int, radius: Int): Unit
+  def fillText(pos: Vector2Int, text: String): Unit
+  def initFont(fontSize: Int): Unit
+}
+
+def defaultContext[R] { prog: () => R / Context }: R / {} = {
+  val canvas = getCanvas()
+  val ctx = canvas.getContext;
+
+  with handleContext(ctx);
+
+  prog()
+}
+
+def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} = {
+  try { prog() }
+  with Context {
+    def fillStyle(color) = { jsFillStyle(ctx, color); resume(()) }
+    def fillRect(pos, size) = { jsFillRect(ctx, pos.x, pos.y, size.x, size.y); resume(()) }
+    def fillCircle(pos, radius) = { jsFillCircle(ctx, pos.x, pos.y, radius); resume(()) }
+    def fillText(pos, text) = { jsFillText(ctx, pos.x, pos.y, text); resume(()) }
+    def initFont(fontSize) = { jsInitFont(ctx, fontSize); resume(()) }
+  }
+}
+
+type Shape {
+  Circle(pos: Vector2Int, radius: Int, color: String);
+  Rectangle(pos: Vector2Int, size: Vector2Int, color: String);
+  Text(pos: Vector2Int, fontSize: Int, color: String, text: String);
+}
+
+def drawShape(shape: Shape): Unit / Context = {
+  shape match {
+    case Circle(pos, radius, color) =>
+      do fillStyle(color);
+      do fillCircle(pos, radius);
+    case Rectangle(pos, size, color) =>
+      do fillStyle(color);
+      do fillRect(pos, size);
+    case Text(pos, fontSize, color, text) =>
+      do initFont(fontSize);
+      do fillStyle(color);
+      do fillText(pos, text);
+  }
+}
+
+def drawShapes(shapes: List[Shape]) = {
+  shapes.foreach { shape =>
+    drawShape(shape)
+  }
+}
+
+def clearCanvas() = {
+  drawShape(Rectangle(Vector2Int(0, 0), Vector2Int(getCanvasWidth(), getCanvasHeight()), "black"));
+}
+
+extern io def resizeCanvas(): Unit =
+  js "resizeCanvas()"
+
+extern io def registerEvents(): Unit =
+  js "registerEvents()"
+
+extern pure def getCanvasWidth(): Int =
+  js "getCanvasWidth()"
+
+extern pure def getCanvasHeight(): Int =
+  js "getCanvasHeight()"
+
+extern pure def isInput1Up(): Bool =
+  js "isInput1Up()"
+
+extern pure def isInput1Down(): Bool =
+  js "isInput1Down()"
+
+extern pure def isInput2Up(): Bool =
+  js "isInput2Up()"
+
+extern pure def isInput2Down(): Bool =
+  js "isInput2Down()"
+
+extern pure def isInputEscape(): Bool =
+  js "isInputEscape()"
+
+extern pure def getTime(): Double =
+  js "window.performance.now() / 1000.0"
+
+extern pure def getCanvas(): CanvasElement =
+  js "getCanvas()"
+
+extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
+  js "(${canvas}).getContext('2d')"
+
+extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
+  js "(${context}).fillStyle = (${color})"
+
+extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
+  js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
+
+extern io def jsFillCircle(context: CanvasRenderingContext2D, x: Int, y: Int, radius: Int): Unit =
+  js "fillCircle(${context}, ${x}, ${y}, ${radius})"
+
+extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Int): Unit =
+  js "initFont(${context}, ${fontSize})"
+
+extern io def jsFillText(context: CanvasRenderingContext2D, x: Int, y: Int, text: String): Unit =
+  js "(${context}).fillText(${text}, ${x}, ${y})"
+
+extern js """
+
+const canvas = document.getElementById('myCanvas');
+let canvasWidth = 0;
+let canvasHeight = 0;
+
+let up1 = false;
+let down1 = false;
+let up2 = false;
+let down2 = false;
+let escape = false;
+
+function getCanvas() {
+  return canvas;
+}
+
+function initFont(ctx, fontSize) {
+  ctx.font = 'bold ' + fontSize + 'px sans';
+  ctx.textAlign = 'center';
+}
+
+function fillCircle(context, x, y, radius) {
+  context.beginPath();
+  context.arc(x, y, radius, 0, 2 * Math.PI);
+  context.fill();
+}
+
+function resizeCanvas() {
+  canvasWidth = window.innerWidth;
+  canvasHeight = window.innerHeight;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+}
+
+function registerEvents() {
+  // Remove for now, because we don't want the canvas to be resizable during the game
+  //window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('keyup', onKeyUp, true);
+}
+
+function onKeyDown(event) {
+  if (event.code == 'KeyW') {
+    up1 = true;
+  }
+  if (event.code == 'KeyS') {
+    down1 = true;
+  }
+  if (event.code == 'ArrowUp') {
+    up2 = true;
+  }
+  if (event.code == 'ArrowDown') {
+    down2 = true;
+  }
+  if (event.code == 'Escape') {
+    escape = true;
+  }
+}
+
+function onKeyUp(event) {
+  if (event.code == 'KeyW') {
+    up1 = false;
+  }
+  if (event.code == 'KeyS') {
+    down1 = false;
+  }
+  if (event.code == 'ArrowUp') {
+    up2 = false;
+  }
+  if (event.code == 'ArrowDown') {
+    down2 = false;
+  }
+}
+
+function getCanvasWidth() {
+  return canvasWidth;
+}
+
+function getCanvasHeight() {
+  return canvasHeight;
+}
+
+function isInput1Up() {
+  return up1;
+}
+
+function isInput1Down() {
+  return down1;
+}
+
+function isInput2Up() {
+  return up2;
+}
+
+function isInput2Down() {
+  return down2;
+}
+
+function isInputEscape() {
+  return escape;
+}
+
+"""
