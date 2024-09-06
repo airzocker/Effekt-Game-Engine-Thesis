@@ -113,11 +113,11 @@ def main() = eventloop(box {
 
     clearCanvas();
     val shapes: List[Shape] = [
-      Rectangle(paddle1Pos.round(), paddleSize, "white"),
-      Rectangle(paddle2Pos.round(), paddleSize, "white"),
-      Circle(ballPos.round(), ballRadius, "white"),
-      Text(Vector2Int(playAreaMin.x + (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), playAreaSize.y / 12, "white", score1.show()),
-      Text(Vector2Int(playAreaMax.x - (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), playAreaSize.y / 12, "white", score2.show())
+      Rectangle(paddle1Pos.round(), paddleSize, Color(255, 255, 255)),
+      Rectangle(paddle2Pos.round(), paddleSize, Color(255, 255, 255)),
+      Circle(ballPos.round(), ballRadius, Color(255, 255, 255)),
+      Text(Vector2Int(playAreaMin.x + (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), playAreaSize.y / 12, Color(255, 255, 255), score1.show()),
+      Text(Vector2Int(playAreaMax.x - (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), playAreaSize.y / 12, Color(255, 255, 255), score2.show())
     ];
     drawShapes(shapes);
   }

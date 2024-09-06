@@ -1,0 +1,13 @@
+record Color(r: Int, g: Int, b: Int)
+
+def setR(c: Color, i: Int): Color = {
+  Color(i, c.g, c.b)
+}
+
+def setG(c: Color, i: Int): Color = {
+  Color(c.r, i, c.b)
+}
+
+def setB(c: Color, i: Int): Color = {
+  Color(c.r, c.g, i)
+}

@@ -5,7 +5,7 @@ extern type CanvasElement
 extern type CanvasRenderingContext2D
 
 interface Context {
-  def fillStyle(color: String): Unit
+  def fillStyle(color: Color): Unit
   def fillRect(pos: Vector2Int, size: Vector2Int): Unit
   def fillCircle(pos: Vector2Int, radius: Int): Unit
   def fillText(pos: Vector2Int, text: String): Unit
@@ -24,7 +24,7 @@ def defaultContext[R] { prog: () => R / Context }: R / {} = {
 def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} = {
   try { prog() }
   with Context {
-    def fillStyle(color) = { jsFillStyle(ctx, color); resume(()) }
+    def fillStyle(color) = { jsFillStyle(ctx, "rgb(" ++ show(color.r) ++ " " ++ show(color.g) ++ " " ++ show(color.b) ++ ")"); resume(()) }
     def fillRect(pos, size) = { jsFillRect(ctx, pos.x, pos.y, size.x, size.y); resume(()) }
     def fillCircle(pos, radius) = { jsFillCircle(ctx, pos.x, pos.y, radius); resume(()) }
     def fillText(pos, text) = { jsFillText(ctx, pos.x, pos.y, text); resume(()) }
@@ -33,9 +33,9 @@ def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }:
 }
 
 type Shape {
-  Circle(pos: Vector2Int, radius: Int, color: String);
-  Rectangle(pos: Vector2Int, size: Vector2Int, color: String);
-  Text(pos: Vector2Int, fontSize: Int, color: String, text: String);
+  Circle(pos: Vector2Int, radius: Int, color: Color);
+  Rectangle(pos: Vector2Int, size: Vector2Int, color: Color);
+  Text(pos: Vector2Int, fontSize: Int, color: Color, text: String);
 }
 
 def drawShape(shape: Shape): Unit / Context = {
@@ -60,7 +60,7 @@ def drawShapes(shapes: List[Shape]) = {
 }
 
 def clearCanvas() = {
-  drawShape(Rectangle(Vector2Int(0, 0), Vector2Int(getCanvasWidth(), getCanvasHeight()), "black"));
+  drawShape(Rectangle(Vector2Int(0, 0), Vector2Int(getCanvasWidth(), getCanvasHeight()), Color(0, 0, 0)));
 }
 
 extern io def resizeCanvas(): Unit =
@@ -100,7 +100,7 @@ extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
   js "(${canvas}).getContext('2d')"
 
 extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
-  js "(${context}).fillStyle = (${color})"
+  js "(${context}).fillStyle = ${color}"
 
 extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
   js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
