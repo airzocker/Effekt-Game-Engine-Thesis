@@ -1,5 +1,4 @@
 import game_engine_lib/core
-import game_engine_lib/vector
 
 extern type CanvasElement
 extern type CanvasRenderingContext2D
