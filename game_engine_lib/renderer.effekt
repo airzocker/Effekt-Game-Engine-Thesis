@@ -74,24 +74,6 @@ extern pure def getCanvasWidth(): Int =
 extern pure def getCanvasHeight(): Int =
   js "getCanvasHeight()"
 
-extern pure def isInput1Up(): Bool =
-  js "isInput1Up()"
-
-extern pure def isInput1Down(): Bool =
-  js "isInput1Down()"
-
-extern pure def isInput2Up(): Bool =
-  js "isInput2Up()"
-
-extern pure def isInput2Down(): Bool =
-  js "isInput2Down()"
-
-extern pure def isInputEscape(): Bool =
-  js "isInputEscape()"
-
-extern pure def getTime(): Double =
-  js "window.performance.now() / 1000.0"
-
 extern pure def getCanvas(): CanvasElement =
   js "getCanvas()"
 
@@ -119,12 +101,6 @@ const canvas = document.getElementById('myCanvas');
 let canvasWidth = 0;
 let canvasHeight = 0;
 
-let up1 = false;
-let down1 = false;
-let up2 = false;
-let down2 = false;
-let escape = false;
-
 function getCanvas() {
   return canvas;
 }
@@ -141,50 +117,13 @@ function fillCircle(context, x, y, radius) {
 }
 
 function resizeCanvas() {
+  // This might be useful as initialization if live resizing is needed:
+  //window.addEventListener('resize', resizeCanvas);
+
   canvasWidth = window.innerWidth;
   canvasHeight = window.innerHeight;
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
-}
-
-function registerEvents() {
-  // Remove for now, because we don't want the canvas to be resizable during the game
-  //window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('keydown', onKeyDown, true);
-  window.addEventListener('keyup', onKeyUp, true);
-}
-
-function onKeyDown(event) {
-  if (event.code == 'KeyW') {
-    up1 = true;
-  }
-  if (event.code == 'KeyS') {
-    down1 = true;
-  }
-  if (event.code == 'ArrowUp') {
-    up2 = true;
-  }
-  if (event.code == 'ArrowDown') {
-    down2 = true;
-  }
-  if (event.code == 'Escape') {
-    escape = true;
-  }
-}
-
-function onKeyUp(event) {
-  if (event.code == 'KeyW') {
-    up1 = false;
-  }
-  if (event.code == 'KeyS') {
-    down1 = false;
-  }
-  if (event.code == 'ArrowUp') {
-    up2 = false;
-  }
-  if (event.code == 'ArrowDown') {
-    down2 = false;
-  }
 }
 
 function getCanvasWidth() {
@@ -193,26 +132,6 @@ function getCanvasWidth() {
 
 function getCanvasHeight() {
   return canvasHeight;
-}
-
-function isInput1Up() {
-  return up1;
-}
-
-function isInput1Down() {
-  return down1;
-}
-
-function isInput2Up() {
-  return up2;
-}
-
-function isInput2Down() {
-  return down2;
-}
-
-function isInputEscape() {
-  return escape;
 }
 
 """

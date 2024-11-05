@@ -2,6 +2,7 @@ import io
 import io/time
 
 import game_engine_lib/core
+import game_engine_lib/engine
 import game_engine_lib/renderer
 
 type Side {
@@ -75,9 +76,7 @@ def main() = {
   var scores = Scores(0, 0);
   var timeState = TimeState(getTime(), 0.0, 0.0);
   
-  while (not(isInputEscape())) {
-    // Loop needs wait() to give control flow back, otherwise JavaScript events will never be detected
-    await(promise(box { wait(0) } ));
+  runGameLoop {
     
     timeState = timeState.updateTimeState();
 
@@ -152,5 +151,6 @@ def main() = {
       Text(Vector2Int(playAreaMax.x - (playAreaMax.x - playAreaMin.x) / 4, playAreaSize.y / 8), playAreaSize.y / 12, Color(255, 255, 255), show(scores.right))
     ];
     drawShapes(shapes);
+
   }
 }

@@ -1,0 +1,96 @@
+import io
+import io/time
+
+def runGameLoop { f: => Unit } = {
+  while (not(isInputEscape())) {
+    // Loop needs wait() to give control flow back, otherwise JavaScript events will never be detected
+    await(promise(box { wait(0) } ));
+    f();
+  }
+}
+
+extern pure def isInput1Up(): Bool =
+  js "isInput1Up()"
+
+extern pure def isInput1Down(): Bool =
+  js "isInput1Down()"
+
+extern pure def isInput2Up(): Bool =
+  js "isInput2Up()"
+
+extern pure def isInput2Down(): Bool =
+  js "isInput2Down()"
+
+extern pure def isInputEscape(): Bool =
+  js "isInputEscape()"
+
+extern pure def getTime(): Double =
+  js "window.performance.now() / 1000.0"
+
+extern js """
+
+let up1 = false;
+let down1 = false;
+let up2 = false;
+let down2 = false;
+let escape = false;
+
+function registerEvents() {
+  window.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('keyup', onKeyUp, true);
+}
+
+function onKeyDown(event) {
+  if (event.code == 'KeyW') {
+    up1 = true;
+  }
+  if (event.code == 'KeyS') {
+    down1 = true;
+  }
+  if (event.code == 'ArrowUp') {
+    up2 = true;
+  }
+  if (event.code == 'ArrowDown') {
+    down2 = true;
+  }
+  if (event.code == 'Escape') {
+    escape = true;
+  }
+}
+
+function onKeyUp(event) {
+  if (event.code == 'KeyW') {
+    up1 = false;
+  }
+  if (event.code == 'KeyS') {
+    down1 = false;
+  }
+  if (event.code == 'ArrowUp') {
+    up2 = false;
+  }
+  if (event.code == 'ArrowDown') {
+    down2 = false;
+  }
+}
+
+function isInput1Up() {
+  return up1;
+}
+
+function isInput1Down() {
+  return down1;
+}
+
+function isInput2Up() {
+  return up2;
+}
+
+function isInput2Down() {
+  return down2;
+}
+
+function isInputEscape() {
+  return escape;
+}
+
+"""
