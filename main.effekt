@@ -47,9 +47,36 @@ def updateTimeState(timeState: TimeState): TimeState = {
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
 
+interface Counter {
+  def inc(): Unit
+  def get(): Int
+}
+
+def example5() = {
+  var x in global = 1;
+  new Counter {
+    def inc = { x = x + 1 }
+    def get = x
+  }
+}
+
+def useCounter {c: Counter} = {
+  println(c.get())
+  c.inc()
+  c.inc()
+  println(c.get())
+}
+
 def main() = {
   resizeCanvas();
   registerEvents();
+  
+  val one = example5();
+  val two = example5();
+  
+  useCounter { one };
+  useCounter { two };
+  useCounter { one };
 
   with defaultContext;
   
