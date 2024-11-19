@@ -1,3 +1,5 @@
+import array
+
 import io
 import io/time
 
@@ -47,36 +49,49 @@ def updateTimeState(timeState: TimeState): TimeState = {
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
 
-interface Counter {
-  def inc(): Unit
-  def get(): Int
+interface Vector[A] {
+  def size: Int
+  def push(value: A): Unit
+  def removeSwap(index: Int): Option[Int]
+  def get(index: Int): A
+  def set(index: Int, value: A): Unit
 }
 
-def example5() = {
-  var x in global = 1;
-  new Counter {
-    def inc = { x = x + 1 }
-    def get = x
+def createVector[A]() = {
+  var size: Int in global = 0;
+  var capacity: Int in global = 0;
+  var array: Array[A] in global = allocate(capacity);
+  new Vector[A] {
+    def size = size
+    def push(value: A) = {
+      if (size == capacity) {
+        if (capacity == 0) {
+          capacity = 1;
+        } else {
+          capacity = capacity * 2;
+        }
+        array = array.resize(capacity);
+      }
+      array.unsafeSet(size, value);
+      size = size + 1;
+    }
+    def removeSwap(index: Int) = {
+      size = size - 1;
+      if (index < size) {
+        array.unsafeSet(index, array.unsafeGet(size));
+        Some(size)
+      } else {
+        None()
+      }
+    }
+    def get(index: Int) = array.unsafeGet(index)
+    def set(index: Int, value: A) = array.unsafeSet(index, value)
   }
-}
-
-def useCounter {c: Counter} = {
-  println(c.get())
-  c.inc()
-  c.inc()
-  println(c.get())
 }
 
 def main() = {
   resizeCanvas();
   registerEvents();
-  
-  val one = example5();
-  val two = example5();
-  
-  useCounter { one };
-  useCounter { two };
-  useCounter { one };
 
   with defaultContext;
   
