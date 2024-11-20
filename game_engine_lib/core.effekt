@@ -1,3 +1,16 @@
+import mutable/map
+
+// Map delete extension
+extern js """
+function map$delete(m, key) {
+  m.delete(key);
+  return $effekt.unit
+}
+"""
+
+extern io def delete[K, V](m: Map[K, V], key: K): Unit =
+  js "map$delete(${m}, ${key})"
+
 record Vector2(x: Double, y: Double)
 
 def setX(v: Vector2, d: Double): Vector2 = {
@@ -128,16 +141,6 @@ def ceil(v: Vector2): Vector2Int = {
 
 def floor(v: Vector2): Vector2Int = {
   Vector2Int(floor(v.x), floor(v.y))
-}
-
-record Transform(pos: Vector2, scale: Vector2)
-
-def setPos(t: Transform, v: Vector2): Transform = {
-  Transform(v, t.scale)
-}
-
-def setScale(t: Transform, v: Vector2): Transform = {
-  Transform(t.pos, v)
 }
 
 record Color(r: Int, g: Int, b: Int)

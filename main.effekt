@@ -1,4 +1,5 @@
 import array
+import mutable/map
 
 import io
 import io/time
@@ -57,10 +58,10 @@ interface Vector[A] {
   def set(index: Int, value: A): Unit
 }
 
-def createVector[A]() = {
-  var size: Int in global = 0;
-  var capacity: Int in global = 0;
-  var array: Array[A] in global = allocate(capacity);
+def createVector[A] { r: Region } = {
+  var size: Int in r = 0;
+  var capacity: Int in r = 0;
+  var array: Array[A] in r = allocate(capacity);
   new Vector[A] {
     def size = size
     def push(value: A) = {
@@ -89,10 +90,70 @@ def createVector[A]() = {
   }
 }
 
+interface Components[C] {
+  
+}
+
+def componentStore[C] { prog: => Unit / Components[C] }: Unit / {} = {
+  region storeRegion {
+    var archVectors in storeRegion = emptyMap[Int, Vector[C] at {storeRegion}]();
+    try {
+      prog();
+    } with Components[C] {
+      
+    }
+  }
+}
+
+interface Yield[A] {
+  def yield(value: A): Unit
+}
+
+interface Iterator[A] {
+  def next(): Option[A]
+}
+
+def yielder[A](array: Array[A]) = {
+  array.foreach() {
+    x => do yield(x)
+  }
+}
+
+def createIterator[A] { yielder: => Unit / Yield[A] } { r: Region } = {
+  var iterFun in r = yielder;
+  var iterValue in r = None();
+  new Iterator[A] {
+    def next() = {
+      iterValue = None();
+      try {
+        iterFun()
+      } with Yield[A] {
+        def yield(value: A) = {
+          iterFun = fun() { resume(()) }
+          iterValue = Some(value);
+        }
+      }
+      iterValue
+    }
+  }
+}
+
 def main() = {
+  var arr = fromList([0, 1, 2, 3, 4]);
+  val testIter = createIterator[Int] { yielder(arr) } { global };
+  loop { {l} =>
+    testIter.next() match {
+      case Some(x) => { println(x) }
+      case None() => {
+        println("empty");
+        l.break()
+      }
+    }
+  }
+
   resizeCanvas();
   registerEvents();
-
+  
   with defaultContext;
   
   val playAreaSize = Vector2Int(getCanvasHeight(), getCanvasHeight());
