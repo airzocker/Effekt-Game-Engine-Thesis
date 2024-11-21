@@ -50,15 +50,43 @@ def updateTimeState(timeState: TimeState): TimeState = {
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
 
+interface Yield[A] {
+  def yield(value: A): Unit
+}
+
+interface Iterator[A] {
+  def next(): Option[A]
+}
+
+def createIterator[A] { yielder: => Unit / Yield[A] } { r: Region } = {
+  var iterFun in r = yielder;
+  var iterValue in r = None();
+  new Iterator[A] {
+    def next() = {
+      iterValue = None();
+      try {
+        iterFun()
+      } with Yield[A] {
+        def yield(value: A) = {
+          iterFun = fun() { resume(()) }
+          iterValue = Some(value);
+        }
+      }
+      iterValue
+    }
+  }
+}
+
 interface Vector[A] {
   def size: Int
   def push(value: A): Unit
   def removeSwap(index: Int): Option[Int]
   def get(index: Int): A
   def set(index: Int, value: A): Unit
+  def iterate { r: Region }: Iterator[A] at { r }
 }
 
-def createVector[A] { r: Region } = {
+def emptyVector[A] { r: Region } = {
   var size: Int in r = 0;
   var capacity: Int in r = 0;
   var array: Array[A] in r = allocate(capacity);
@@ -87,6 +115,11 @@ def createVector[A] { r: Region } = {
     }
     def get(index: Int) = array.unsafeGet(index)
     def set(index: Int, value: A) = array.unsafeSet(index, value)
+    def iterate { r } = createIterator[A] {
+      array.foreach() {
+        x => do yield(x)
+      }
+    } { r }
   }
 }
 
@@ -105,42 +138,14 @@ def componentStore[C] { prog: => Unit / Components[C] }: Unit / {} = {
   }
 }
 
-interface Yield[A] {
-  def yield(value: A): Unit
-}
-
-interface Iterator[A] {
-  def next(): Option[A]
-}
-
-def yielder[A](array: Array[A]) = {
-  array.foreach() {
-    x => do yield(x)
-  }
-}
-
-def createIterator[A] { yielder: => Unit / Yield[A] } { r: Region } = {
-  var iterFun in r = yielder;
-  var iterValue in r = None();
-  new Iterator[A] {
-    def next() = {
-      iterValue = None();
-      try {
-        iterFun()
-      } with Yield[A] {
-        def yield(value: A) = {
-          iterFun = fun() { resume(()) }
-          iterValue = Some(value);
-        }
-      }
-      iterValue
-    }
-  }
-}
-
 def main() = {
-  var arr = fromList([0, 1, 2, 3, 4]);
-  val testIter = createIterator[Int] { yielder(arr) } { global };
+  var vec = emptyVector() { global };
+  vec.push(0);
+  vec.push(1);
+  vec.push(2);
+  vec.push(3);
+  vec.push(4);
+  val testIter = vec.iterate() { global };
   loop { {l} =>
     testIter.next() match {
       case Some(x) => { println(x) }
