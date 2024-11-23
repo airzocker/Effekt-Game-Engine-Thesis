@@ -51,24 +51,24 @@ def updateTimeState(timeState: TimeState): TimeState = {
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
 
-interface Yield[A] {
-  def yield(value: A): Unit
+interface Yield[T] {
+  def yield(value: T): Unit
 }
 
-interface Iterator[A] {
-  def next(): Option[A]
+interface Iterator[T] {
+  def next(): Option[T]
 }
 
-def createIterator[A] {yielder: => Unit / Yield[A]} {r: Region} = {
+def createIterator[T] {yielder: => Unit / Yield[T]} {r: Region} = {
   var iterFun in r = yielder;
   var iterValue in r = None();
-  new Iterator[A] {
+  new Iterator[T] {
     def next() = {
       iterValue = None();
       try {
         iterFun()
-      } with Yield[A] {
-        def yield(value: A) = {
+      } with Yield[T] {
+        def yield(value: T) = {
           iterFun = fun() { resume(()) }
           iterValue = Some(value);
         }
@@ -78,25 +78,69 @@ def createIterator[A] {yielder: => Unit / Yield[A]} {r: Region} = {
   }
 }
 
-def iterate[A](arr: ResizableArray[A]) {r: Region} = {
-  createIterator[A]() {
+def iterate[T](arr: ResizableArray[T]) {r: Region} = {
+  createIterator[T]() {
     arr.foreach {
       x => do yield(x)
     }
   } {r}
 }
 
-interface Components[C] {
-  
+interface Components[T] {
+  def get(archId: Int, index: Int): T
+  def set(archId: Int, index: Int, value: T): Unit
+  def push(archId: Int, value: T): Int
+  def swapRemove(archId: Int, index: Int): Option[Int]
 }
 
-def componentStore[C] { prog: => Unit / Components[C] }: Unit / {} = {
-  region storeRegion {
-    var archVectors in storeRegion = emptyMap[Int, ResizableArray[C]]();
-    try {
-      prog();
-    } with Components[C] {
-      
+def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
+  with report[OutOfBounds]();
+  var archVectors = resizableArray[ResizableArray[T]](4);
+  var archIdToIndexMap = emptyMap();
+  var archIndexToIdMap = emptyMap();
+  try {
+    prog();
+  } with Components[T] {
+    def get(archId: Int, index: Int) = {
+      resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeGet(index))
+    }
+    def set(archId: Int, index: Int, value: T) = {
+      archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeSet(index, value);
+      resume(())
+    }
+    def push(archId: Int, value: T) = {
+      resume(
+        archIdToIndexMap.get(archId) match {        
+          case Some(archIndex) => archVectors.unsafeGet(archIndex).add(value)
+          case None() => {
+            val newArchIndex = archVectors.size();
+            val newArchVector = resizableArray(4);
+            newArchVector.add(value);
+            archVectors.add(newArchVector);
+            archIdToIndexMap.update(archId, newArchIndex);
+            archIndexToIdMap.update(newArchIndex, archId)
+            0
+          }
+        }
+      )
+    }
+    def swapRemove(archId: Int, index: Int) = {
+      val archIndex = archIdToIndexMap.unsafeGet(archId);
+      val arr = archVectors.unsafeGet(archIndex);
+      val swapIndex = arr.removeSwap(index);
+      if (arr.size() == 0) {
+        archVectors.removeSwap(archIndex) match {
+          case Some(i) => {
+            val swappedArchId = archIndexToIdMap.unsafeGet(i);
+            archIndexToIdMap.update(archIndex, swappedArchId);
+            archIdToIndexMap.update(swappedArchId, archIndex);
+          }
+          case None() => ()
+        }
+        archIndexToIdMap.delete(archVectors.size());
+        archIdToIndexMap.delete(archId);
+      }
+      resume(swapIndex)
     }
   }
 }
