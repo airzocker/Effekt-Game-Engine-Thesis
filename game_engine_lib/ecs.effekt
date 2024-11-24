@@ -1,0 +1,67 @@
+import resizable_array
+import mutable/map
+
+import game_engine_lib/core
+
+interface Components[T] {
+  def get(archId: Int, index: Int): T
+  def set(archId: Int, index: Int, value: T): Unit
+  def push(archId: Int, value: T): Int
+  def swapRemove(archId: Int, index: Int): Option[Int]
+  def iterate(archId: Int): Iterator[ResizableArray[T]]
+}
+
+def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
+  var archVectors = resizableArray[ResizableArray[T]](4);
+  var archIdToIndexMap = emptyMap();
+  var archIndexToIdMap = emptyMap();
+  try {
+    prog();
+  } with Components[T] {
+    def get(archId: Int, index: Int) = {
+      resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeGet(index))
+    }
+    def set(archId: Int, index: Int, value: T) = {
+      archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeSet(index, value);
+      resume(())
+    }
+    def push(archId: Int, value: T) = {
+      resume(
+        archIdToIndexMap.get(archId) match {        
+          case Some(archIndex) => archVectors.unsafeGet(archIndex).add(value)
+          case None() => {
+            val newArchIndex = archVectors.size();
+            val newArchVector = resizableArray(4);
+            newArchVector.add(value);
+            archVectors.add(newArchVector);
+            archIdToIndexMap.update(archId, newArchIndex);
+            archIndexToIdMap.update(newArchIndex, archId)
+            0
+          }
+        }
+      )
+    }
+    def swapRemove(archId: Int, index: Int) = {
+      with report[OutOfBounds]();
+      val archIndex = archIdToIndexMap.unsafeGet(archId);
+      val arr = archVectors.unsafeGet(archIndex);
+      val swapIndex = arr.removeSwap(index);
+      if (arr.size() == 0) {
+        archVectors.removeSwap(archIndex) match {
+          case Some(i) => {
+            val swappedArchId = archIndexToIdMap.unsafeGet(i);
+            archIndexToIdMap.update(archIndex, swappedArchId);
+            archIdToIndexMap.update(swappedArchId, archIndex);
+          }
+          case None() => ()
+        }
+        archIndexToIdMap.delete(archVectors.size());
+        archIdToIndexMap.delete(archId);
+      }
+      resume(swapIndex)
+    }
+    def iterate(archId: Int) = {
+      resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).iterate())
+    }
+  }
+}

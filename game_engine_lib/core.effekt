@@ -23,6 +23,185 @@ def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] / Exception[O
   swapped
 }
 
+record Iterator[T](container: T, nextIndex: Ref[Int])
+
+def next[T](iter: Iterator[ResizableArray[T]]): Option[T] = {
+  val i = iter.nextIndex.get();
+  if (i < iter.container.size()) {
+    iter.nextIndex.set(i + 1);
+    Some(iter.container.unsafeGet(i))
+  } else {
+    None()
+  }
+}
+
+def setLastValue[T](iter: Iterator[ResizableArray[T]], value: T) = {
+  val i = iter.nextIndex.get() - 1;
+  if (i >= 0 && i < iter.container.size()) {
+    iter.container.unsafeSet(i, value)
+  }
+}
+
+def reset[T](iter: Iterator[ResizableArray[T]]) = {
+  iter.nextIndex.set(0)
+}
+
+def iterate[T](arr: ResizableArray[T]): Iterator[ResizableArray[T]] = {
+  Iterator(arr, ref(0))
+}
+
+def foreachRef[A](iterA: Iterator[ResizableArray[A]]) {body: (Ref[A]) => Unit} = {
+  iterA.reset();
+  val refA = allocate();
+  loop { {l} =>
+    iterA.next() match {
+      case Some(a) => {
+        refA.set(a);
+        body(refA);
+        iterA.setLastValue(refA.get());
+      }
+      case _ => {
+        l.break()
+      }
+    }
+  }
+}
+
+def foreachRef[A, B](
+  iterA: Iterator[ResizableArray[A]],
+  iterB: Iterator[ResizableArray[B]]
+) {body: (
+  Ref[A],
+  Ref[B]
+) => Unit} = {
+  iterA.reset();
+  iterB.reset();
+  val refA = allocate();
+  val refB = allocate();
+  loop { {l} =>
+    (
+      iterA.next(),
+      iterB.next()
+    ) match {
+      case (
+        Some(a),
+        Some(b)
+      ) => {
+        refA.set(a);
+        refB.set(b);
+        body(
+          refA,
+          refB
+        );
+        iterA.setLastValue(refA.get());
+        iterB.setLastValue(refB.get());
+      }
+      case _ => {
+        l.break()
+      }
+    }
+  }
+}
+
+def foreachRef[A, B, C](
+  iterA: Iterator[ResizableArray[A]],
+  iterB: Iterator[ResizableArray[B]],
+  iterC: Iterator[ResizableArray[C]]
+) {body: (
+  Ref[A],
+  Ref[B],
+  Ref[C]
+) => Unit} = {
+  iterA.reset();
+  iterB.reset();
+  iterC.reset();
+  val refA = allocate();
+  val refB = allocate();
+  val refC = allocate();
+  loop { {l} =>
+    (
+      iterA.next(),
+      iterB.next(),
+      iterC.next()
+    ) match {
+      case (
+        Some(a),
+        Some(b),
+        Some(c)
+      ) => {
+        refA.set(a);
+        refB.set(b);
+        refC.set(c);
+        body(
+          refA,
+          refB,
+          refC
+        );
+        iterA.setLastValue(refA.get());
+        iterB.setLastValue(refB.get());
+        iterC.setLastValue(refC.get());
+      }
+      case _ => {
+        l.break()
+      }
+    }
+  }
+}
+
+def foreachRef[A, B, C, D](
+  iterA: Iterator[ResizableArray[A]],
+  iterB: Iterator[ResizableArray[B]],
+  iterC: Iterator[ResizableArray[C]],
+  iterD: Iterator[ResizableArray[D]]
+) {body: (
+  Ref[A],
+  Ref[B],
+  Ref[C],
+  Ref[D]
+) => Unit} = {
+  iterA.reset();
+  iterB.reset();
+  iterC.reset();
+  iterD.reset();
+  val refA = allocate();
+  val refB = allocate();
+  val refC = allocate();
+  val refD = allocate();
+  loop { {l} =>
+    (
+      iterA.next(),
+      iterB.next(),
+      iterC.next(),
+      iterD.next()
+    ) match {
+      case (
+        Some(a),
+        Some(b),
+        Some(c),
+        Some(d)
+      ) => {
+        refA.set(a);
+        refB.set(b);
+        refC.set(c);
+        refD.set(d);
+        body(
+          refA,
+          refB,
+          refC,
+          refD
+        );
+        iterA.setLastValue(refA.get());
+        iterB.setLastValue(refB.get());
+        iterC.setLastValue(refC.get());
+        iterD.setLastValue(refD.get());
+      }
+      case _ => {
+        l.break()
+      }
+    }
+  }
+}
+
 record Vector2(x: Double, y: Double)
 
 def setX(v: Vector2, d: Double): Vector2 = {
