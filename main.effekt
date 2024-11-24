@@ -91,10 +91,10 @@ interface Components[T] {
   def set(archId: Int, index: Int, value: T): Unit
   def push(archId: Int, value: T): Int
   def swapRemove(archId: Int, index: Int): Option[Int]
+  def iterate(archId: Int) {r: Region}: Iterator[T] at {r}
 }
 
 def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
-  with report[OutOfBounds]();
   var archVectors = resizableArray[ResizableArray[T]](4);
   var archIdToIndexMap = emptyMap();
   var archIndexToIdMap = emptyMap();
@@ -125,6 +125,7 @@ def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
       )
     }
     def swapRemove(archId: Int, index: Int) = {
+      with report[OutOfBounds]();
       val archIndex = archIdToIndexMap.unsafeGet(archId);
       val arr = archVectors.unsafeGet(archIndex);
       val swapIndex = arr.removeSwap(index);
@@ -142,19 +143,24 @@ def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
       }
       resume(swapIndex)
     }
+    def iterate(archId: Int) {r} = {
+      region r {
+        val iterator = archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).iterate() {r};
+        resume(iterator)
+      }
+    }
   }
 }
 
-def main() = {
+def testIterators() = {
   var vec = resizableArray(5);
   vec.add(0);
   vec.add(1);
   vec.add(2);
   vec.add(3);
   vec.add(4);
-  val testIter = vec.iterate() {global};
   loop { {l} =>
-    testIter.next() match {
+    do next[Int]() match {
       case Some(x) => { println(x) }
       case None() => {
         println("empty");
@@ -162,7 +168,11 @@ def main() = {
       }
     }
   }
+}
 
+def main() = {
+  testIterators();
+  
   resizeCanvas();
   registerEvents();
   
