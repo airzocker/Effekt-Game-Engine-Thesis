@@ -1,7 +1,7 @@
 import io
 import io/time
 
-def runGameLoop {prog: => Unit} = {
+def runGameLoop { prog: => Unit } = {
   while (not(isInputEscape())) {
     // Loop needs wait() to give control flow back, otherwise JavaScript events will never be detected
     await(promise(box { wait(0) } ));

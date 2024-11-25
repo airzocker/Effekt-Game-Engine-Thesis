@@ -3,21 +3,42 @@ import mutable/map
 
 import game_engine_lib/core
 
-interface Components[T] {
+interface TypeManager {
+  def getNextTypeId(): Int
+}
+
+def defaultTypeManager() { prog: => Unit / TypeManager }: Unit / {} = {
+  var lastTypeId = 0;
+  try {
+    prog();
+  } with TypeManager {
+    def getNextTypeId() = {
+      lastTypeId = lastTypeId + 1;
+      resume(lastTypeId)
+    }
+  }
+}
+
+interface ComponentStore[T] {
+  def getTypeId(): Int
   def get(archId: Int, index: Int): T
   def set(archId: Int, index: Int, value: T): Unit
   def push(archId: Int, value: T): Int
   def swapRemove(archId: Int, index: Int): Option[Int]
-  def iterate(archId: Int): Iterator[ResizableArray[T]]
+  def iterate(archId: Int): IterResizableArray[T]
 }
 
-def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
+def createComponentStore[T] { prog: => Unit / ComponentStore[T] }: Unit / TypeManager = {
+  val typeId = do getNextTypeId();
   var archVectors = resizableArray[ResizableArray[T]](4);
   var archIdToIndexMap = emptyMap();
   var archIndexToIdMap = emptyMap();
   try {
     prog();
-  } with Components[T] {
+  } with ComponentStore[T] {
+    def getTypeId() = {
+      resume(typeId)
+    }
     def get(archId: Int, index: Int) = {
       resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeGet(index))
     }
@@ -62,6 +83,64 @@ def componentStore[T] { prog: => Unit / Components[T] }: Unit / {} = {
     }
     def iterate(archId: Int) = {
       resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).iterate())
+    }
+  }
+}
+
+interface Resource[T] {
+  def getTypeId(): Int
+  def get(): T
+  def set(value: T): Unit
+}
+
+def createResource[T](value: T) { prog: => Unit / Resource[T] }: Unit / TypeManager = {
+  val typeId = do getNextTypeId();
+  var res = value;
+  try {
+    prog();
+  } with Resource[T] {
+    def getTypeId() = {
+      resume(typeId)
+    }
+    def get() = {
+      resume(res)
+    }
+    def set(value: T) = {
+      res = value;
+      resume(())
+    }
+  }
+}
+
+interface World {
+  def pushBackSystem(): Unit
+  def pushFrontSystem(): Unit
+  def step(): Unit
+  def run(): Unit
+}
+
+def defaultWorld() { prog: => Unit / World }: Unit / {} = {
+  var systems = fun() { () };
+  def stepWorld() = {
+    systems()
+  }
+  try {
+    prog();
+  } with World {
+    def pushBackSystem() = {
+      resume(())
+    }
+    def pushFrontSystem() = {
+      resume(())
+    }
+    def step() = {
+      stepWorld();
+      resume(())
+    }
+    def run() = {
+      loop { { l } =>
+        stepWorld();
+      }
     }
   }
 }
