@@ -128,7 +128,9 @@ def iteratorChain[T](arr: ResizableArray[IterResizableArray[T]]) { prog: => Unit
   }
 }
 
-def foreachRef[A]() { body: (
+def foreachRef[
+  A
+]() { body: (
   Ref[A]
 ) => Unit }: Unit / {
   Iterator[A]
@@ -151,7 +153,10 @@ def foreachRef[A]() { body: (
   }
 }
 
-def foreachRef[A, B]() { body: (
+def foreachRef[
+  A,
+  B
+]() { body: (
   Ref[A],
   Ref[B]
 ) => Unit }: Unit / {
@@ -187,7 +192,11 @@ def foreachRef[A, B]() { body: (
   }
 }
 
-def foreachRef[A, B, C]() { body: (
+def foreachRef[
+  A,
+  B,
+  C
+]() { body: (
   Ref[A],
   Ref[B],
   Ref[C]
@@ -232,7 +241,12 @@ def foreachRef[A, B, C]() { body: (
   }
 }
 
-def foreachRef[A, B, C, D]() { body: (
+def foreachRef[
+  A,
+  B,
+  C,
+  D
+]() { body: (
   Ref[A],
   Ref[B],
   Ref[C],

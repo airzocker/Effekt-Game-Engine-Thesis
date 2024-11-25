@@ -26,6 +26,7 @@ interface ComponentStore[T] {
   def push(archId: Int, value: T): Int
   def swapRemove(archId: Int, index: Int): Option[Int]
   def iterate(archId: Int): IterResizableArray[T]
+  def getArchIdToIndexMap(): Map[Int, Int]
 }
 
 def createComponentStore[T] { prog: => Unit / ComponentStore[T] }: Unit / TypeManager = {
@@ -84,6 +85,9 @@ def createComponentStore[T] { prog: => Unit / ComponentStore[T] }: Unit / TypeMa
     def iterate(archId: Int) = {
       resume(archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).iterate())
     }
+    def getArchIdToIndexMap() = {
+      resume(archIdToIndexMap)
+    }
   }
 }
 
@@ -112,9 +116,192 @@ def createResource[T](value: T) { prog: => Unit / Resource[T] }: Unit / TypeMana
   }
 }
 
+def getArchIterators[
+  A
+](): (
+  IterChainResizableArray[A]
+) / {
+  ComponentStore[A]
+} = {
+  val chainsA = resizableArray();
+  do getArchIdToIndexMap[A]().keys().foreach() { archId =>
+    chainsA.add(do iterate[A](archId));
+    ()
+  };
+  (
+    chainsA.iterate()
+  )
+}
+
+def getArchIterators[
+  A,
+  B
+](): (
+  IterChainResizableArray[A],
+  IterChainResizableArray[B]
+) / {
+  ComponentStore[A],
+  ComponentStore[B]
+} = {
+  val chainsA = resizableArray();
+  val chainsB = resizableArray();
+  val archIdToIndexMapB = do getArchIdToIndexMap[B]();
+  do getArchIdToIndexMap[A]().keys().foreach() { archId =>
+    if (
+      archIdToIndexMapB.get(archId).isDefined()
+    ) {
+      chainsA.add(do iterate[A](archId));
+      chainsB.add(do iterate[B](archId));
+      ()
+    }
+  };
+  (
+    chainsA.iterate(),
+    chainsB.iterate()
+  )
+}
+
+def getArchIterators[
+  A,
+  B,
+  C
+](): (
+  IterChainResizableArray[A],
+  IterChainResizableArray[B],
+  IterChainResizableArray[C]
+) / {
+  ComponentStore[A],
+  ComponentStore[B],
+  ComponentStore[C]
+} = {
+  val chainsA = resizableArray();
+  val chainsB = resizableArray();
+  val chainsC = resizableArray();
+  val archIdToIndexMapB = do getArchIdToIndexMap[B]();
+  val archIdToIndexMapC = do getArchIdToIndexMap[C]();
+  do getArchIdToIndexMap[A]().keys().foreach() { archId =>
+    if (
+      archIdToIndexMapB.get(archId).isDefined()
+      && archIdToIndexMapC.get(archId).isDefined()
+    ) {
+      chainsA.add(do iterate[A](archId));
+      chainsB.add(do iterate[B](archId));
+      chainsC.add(do iterate[C](archId));
+      ()
+    }
+  };
+  (
+    chainsA.iterate(),
+    chainsB.iterate(),
+    chainsC.iterate()
+  )
+}
+
+def getArchIterators[
+  A,
+  B,
+  C,
+  D
+](): (
+  IterChainResizableArray[A],
+  IterChainResizableArray[B],
+  IterChainResizableArray[C],
+  IterChainResizableArray[D]
+) / {
+  ComponentStore[A],
+  ComponentStore[B],
+  ComponentStore[C],
+  ComponentStore[D]
+} = {
+  val chainsA = resizableArray();
+  val chainsB = resizableArray();
+  val chainsC = resizableArray();
+  val chainsD = resizableArray();
+  val archIdToIndexMapB = do getArchIdToIndexMap[B]();
+  val archIdToIndexMapC = do getArchIdToIndexMap[C]();
+  val archIdToIndexMapD = do getArchIdToIndexMap[D]();
+  do getArchIdToIndexMap[A]().keys().foreach() { archId =>
+    if (
+      archIdToIndexMapB.get(archId).isDefined()
+      && archIdToIndexMapC.get(archId).isDefined()
+      && archIdToIndexMapD.get(archId).isDefined()
+    ) {
+      chainsA.add(do iterate[A](archId));
+      chainsB.add(do iterate[B](archId));
+      chainsC.add(do iterate[C](archId));
+      chainsD.add(do iterate[D](archId));
+      ()
+    }
+  };
+  (
+    chainsA.iterate(),
+    chainsB.iterate(),
+    chainsC.iterate(),
+    chainsD.iterate()
+  )
+}
+
+def createSystem() { body: => Unit } = {
+  fun() {
+    body();
+  }
+}
+
+def createSystem[
+  A
+]() { body: (
+  IterChainResizableArray[A]
+) => Unit } = {
+  fun() {
+    getArchIterators[
+      A
+    ]() match {
+      case iterA => body(
+        iterA
+      );
+    }
+  }
+}
+
+def createSystem[
+  A,
+  B
+]() { body: (
+  IterChainResizableArray[A],
+  IterChainResizableArray[B]
+) => Unit } = {
+  fun() {
+    getArchIterators[
+      A,
+      B
+    ]() match {
+      case (
+        iterA,
+        iterB
+      ) => body(
+        iterA,
+        iterB
+      );
+    }
+  }
+}
+
 interface World {
-  def pushBackSystem(): Unit
-  def pushFrontSystem(): Unit
+  def pushBackSystem(system: => Unit at {}): Unit
+  /*
+  def pushBackSystem[
+    A
+  ]() { system: (
+    IterChainResizableArray[A]
+  ) => Unit }: Unit
+  def pushBackSystem[
+    A,
+    B
+  ]() { system: (
+    IterChainResizableArray[A],
+    IterChainResizableArray[B]
+  ) => Unit }: Unit
+  */
   def step(): Unit
   def run(): Unit
 }
@@ -127,10 +314,11 @@ def defaultWorld() { prog: => Unit / World }: Unit / {} = {
   try {
     prog();
   } with World {
-    def pushBackSystem() = {
-      resume(())
-    }
-    def pushFrontSystem() = {
+    def pushBackSystem(system) = {
+      systems = fun() {
+        systems();
+        system();
+      }
       resume(())
     }
     def step() = {
