@@ -91,6 +91,50 @@ def iterateChain[T](arr: ResizableArray[Iterator[T] at {global}]) = {
   }
 }
 
+def iterateLoop[T](iterator: Iterator[T] at {global}) = {
+  val iterator = iterator;
+  new Iterator[T] {
+    def next() = {
+      iterator.next() match {
+        case Some(value) => Some(value)
+        case None() => {
+          iterator.reset();
+          iterator.next()
+        }
+      }
+    }
+    def setLastValue(value: T) = {
+      iterator.setLastValue(value);
+    }
+    def reset() = {
+      iterator.reset();
+    }
+  }
+}
+
+def iterateValue[T](value: T) = {
+  var iterValue in global = value;
+  var hasNextValue in global = true;
+  new Iterator[T] {
+    def next() = {
+      if (hasNextValue) {
+        hasNextValue = false;
+        Some(iterValue)
+      } else {
+        None()
+      }
+    }
+    def setLastValue(value: T) = {
+      if (not(hasNextValue)) {
+        iterValue = value;
+      }
+    }
+    def reset() = {
+      hasNextValue = true;
+    }
+  }
+}
+
 def foreachRef[
   A
 ](

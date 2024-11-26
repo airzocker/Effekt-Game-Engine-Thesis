@@ -54,6 +54,7 @@ def testEcs() = {
   with defaultTypeManager();
   with componentManager[Int]();
   with componentManager[Double]();
+  with resourceManager[String]("TestString");
 
   val intComps = do getComponentStore[Int]();
   val doubleComps = do getComponentStore[Double]();
@@ -72,8 +73,12 @@ def testEcs() = {
 
   with defaultWorld();
   do pushBackSystem(
-    createSystem[Int, Double](
-      fun(ints: Iterator[Int] at {global, io}, doubles: Iterator[Double] at {global, io}) {
+    createSystem[Int, Double, String](
+      systemFun() { (ints, doubles, string) =>
+        string.next() match {
+          case Some(s) => println(s)
+          case _ => ()
+        }
         foreachRef(ints, doubles) { (i, d) =>
           println("Int: " ++ i.get().show());
           println("Double: " ++ d.get().show());

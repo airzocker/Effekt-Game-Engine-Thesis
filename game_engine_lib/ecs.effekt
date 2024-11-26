@@ -23,12 +23,16 @@ def defaultTypeManager() { prog: => Unit / TypeManager }: Unit / {} = {
 
 interface ComponentStore[T] {
   def getTypeId(): Int
+  def isResource(): Bool
   def get(archId: Int, index: Int): T
   def set(archId: Int, index: Int, value: T): Unit
   def push(archId: Int, value: T): Int
   def swapRemove(archId: Int, index: Int): Option[Int]
   def iterateArch(archId: Int): Iterator[T] at {global}
   def getArchIdToIndexMap(): Map[Int, Int]
+  def getResource(): T
+  def setResource(value: T): Unit
+  def iterateResource(): Iterator[T] at {global}
 }
 
 def createcomponentStore[T]: ComponentStore[T] at {global, io} / TypeManager = {
@@ -39,6 +43,9 @@ def createcomponentStore[T]: ComponentStore[T] at {global, io} / TypeManager = {
   new ComponentStore[T] {
     def getTypeId() = {
       typeId
+    }
+    def isResource() = {
+      false
     }
     def get(archId: Int, index: Int) = {
       archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeGet(index)
@@ -84,6 +91,55 @@ def createcomponentStore[T]: ComponentStore[T] at {global, io} / TypeManager = {
     def getArchIdToIndexMap() = {
       archIdToIndexMap
     }
+    def getResource() = {
+      panic("getResource() invalid on Component Store!")
+    }
+    def setResource(value: T) = {
+      panic("setResource() invalid on Component Store!")
+    }
+    def iterateResource() = {
+      panic("iterateResource() invalid on Component Store!")
+    }
+  }
+}
+
+def createResourceStore[T](value: T): ComponentStore[T] at {global, io} / TypeManager = {
+  val typeId = do getNextTypeId();
+  var resourceValue in global = value;
+  new ComponentStore[T] {
+    def getTypeId() = {
+      typeId
+    }
+    def isResource() = {
+      true
+    }
+    def get(archId: Int, index: Int) = {
+      panic("get() invalid on Resource Store!")
+    }
+    def set(archId: Int, index: Int, value: T) = {
+      panic("get() invalid on Resource Store!")
+    }
+    def push(archId: Int, value: T) = {
+      panic("push() invalid on Resource Store!")
+    }
+    def swapRemove(archId: Int, index: Int) = {
+      panic("swapRemove() invalid on Resource Store!")
+    }
+    def iterateArch(archId: Int) = {
+      panic("iterateArch() invalid on Resource Store!")
+    }
+    def getArchIdToIndexMap() = {
+      panic("getArchIdToIndexMap() invalid on Resource Store!")
+    }
+    def getResource() = {
+      resourceValue
+    }
+    def setResource(value: T) = {
+      resourceValue = value;
+    }
+    def iterateResource() = {
+      iterateLoop(iterateValue(resourceValue))
+    }
   }
 }
 
@@ -102,38 +158,12 @@ def componentManager[T]() { prog: => Unit / ComponentManager[T] } = {
   }
 }
 
-interface ResourceStore[T] {
-  def getTypeId(): Int
-  def get(): T
-  def set(value: T): Unit
-}
-
-def createResourceStore[T](value: T): ResourceStore[T] at {global} / TypeManager = {
-  val typeId = do getNextTypeId();
-  var resourceValue in global = value;
-  new ResourceStore[T] {
-    def getTypeId() = {
-      typeId
-    }
-    def get() = {
-      resourceValue
-    }
-    def set(value: T) = {
-      resourceValue = value;
-    }
-  }
-}
-
-interface ResourceManager[T] {
-  def getResourceStore(): ResourceStore[T] at {global}
-}
-
-def resourceManager[T](value: T) { prog: => Unit / ResourceManager[T] } = {
+def resourceManager[T](value: T) { prog: => Unit / ComponentManager[T] } = {
   val resourceStore = createResourceStore(value);
   try {
     prog();
-  } with ResourceManager[T] {
-    def getResourceStore() = {
+  } with ComponentManager[T] {
+    def getComponentStore() = {
       resume(resourceStore)
     }
   }
@@ -145,12 +175,39 @@ def getArchIterators[
   componentStoreA: ComponentStore[A] at {global, io}
 ) = {
   val chainsA = resizableArray();
-  componentStoreA.getArchIdToIndexMap().keys().foreach() { archId =>
-    chainsA.add(componentStoreA.iterateArch(archId));
-    ()
+  val archIdMapA = if (not(componentStoreA.isResource())) {
+    Some(componentStoreA.getArchIdToIndexMap())
+  } else {
+    None()
   };
+  val firstMap = if (archIdMapA.isDefined()) {
+    archIdMapA
+  } else {
+    None()
+  };
+  firstMap match {
+    case Some(map) =>
+      map.keys().foreach() { (archId) {l} =>
+        archIdMapA match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        if (not(componentStoreA.isResource())) {
+          chainsA.add(componentStoreA.iterateArch(archId));
+          ()
+        }
+      };
+    case _ => ()
+  }
   (
-    chainsA.iterateChain()
+    if (componentStoreA.isResource()) {
+      componentStoreA.iterateResource()
+    } else {
+      chainsA.iterateChain()
+    }
   )
 }
 
@@ -163,19 +220,156 @@ def getArchIterators[
 ) = {
   val chainsA = resizableArray();
   val chainsB = resizableArray();
-  val archIdToIndexMapB = componentStoreB.getArchIdToIndexMap[B]();
-  componentStoreA.getArchIdToIndexMap().keys().foreach() { archId =>
-    if (
-      archIdToIndexMapB.get(archId).isDefined()
-    ) {
-      chainsA.add(componentStoreA.iterateArch(archId));
-      chainsB.add(componentStoreB.iterateArch(archId));
-      ()
-    }
+  val archIdMapA = if (not(componentStoreA.isResource())) {
+    Some(componentStoreA.getArchIdToIndexMap())
+  } else {
+    None()
   };
+  val archIdMapB = if (not(componentStoreB.isResource())) {
+    Some(componentStoreB.getArchIdToIndexMap())
+  } else {
+    None()
+  };
+  val firstMap = if (archIdMapA.isDefined()) {
+    archIdMapA
+  } else if (archIdMapB.isDefined()) {
+    archIdMapB
+  } else {
+    None()
+  };
+  firstMap match {
+    case Some(map) =>
+      map.keys().foreach() { (archId) {l} =>
+        archIdMapA match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        archIdMapB match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        if (not(componentStoreA.isResource())) {
+          chainsA.add(componentStoreA.iterateArch(archId));
+          ()
+        }
+        if (not(componentStoreB.isResource())) {
+          chainsB.add(componentStoreB.iterateArch(archId));
+          ()
+        }
+      };
+    case _ => ()
+  }
   (
-    chainsA.iterateChain(),
-    chainsB.iterateChain()
+    if (componentStoreA.isResource()) {
+      componentStoreA.iterateResource()
+    } else {
+      chainsA.iterateChain()
+    },
+    if (componentStoreB.isResource()) {
+      componentStoreB.iterateResource()
+    } else {
+      chainsB.iterateChain()
+    }
+  )
+}
+
+def getArchIterators[
+  A,
+  B,
+  C
+](
+  componentStoreA: ComponentStore[A] at {global, io},
+  componentStoreB: ComponentStore[B] at {global, io},
+  componentStoreC: ComponentStore[C] at {global, io}
+) = {
+  val chainsA = resizableArray();
+  val chainsB = resizableArray();
+  val chainsC = resizableArray();
+  val archIdMapA = if (not(componentStoreA.isResource())) {
+    Some(componentStoreA.getArchIdToIndexMap())
+  } else {
+    None()
+  };
+  val archIdMapB = if (not(componentStoreB.isResource())) {
+    Some(componentStoreB.getArchIdToIndexMap())
+  } else {
+    None()
+  };
+  val archIdMapC = if (not(componentStoreC.isResource())) {
+    Some(componentStoreC.getArchIdToIndexMap())
+  } else {
+    None()
+  };
+  val firstMap = if (archIdMapA.isDefined()) {
+    archIdMapA
+  } else if (archIdMapB.isDefined()) {
+    archIdMapB
+  } else if (archIdMapC.isDefined()) {
+    archIdMapC
+  } else {
+    None()
+  };
+  firstMap match {
+    case Some(map) =>
+      map.keys().foreach() { (archId) {l} =>
+        archIdMapA match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        archIdMapB match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        archIdMapC match {
+          case Some(archIdMap) =>
+            if (archIdMap.get(archId).isEmpty()) {
+              l.continue()
+            }
+          case _ => ()
+        }
+        if (not(componentStoreA.isResource())) {
+          chainsA.add(componentStoreA.iterateArch(archId));
+          ()
+        }
+        if (not(componentStoreB.isResource())) {
+          chainsB.add(componentStoreB.iterateArch(archId));
+          ()
+        }
+        if (not(componentStoreC.isResource())) {
+          chainsC.add(componentStoreC.iterateArch(archId));
+          ()
+        }
+      };
+    case _ => ()
+  }
+  (
+    if (componentStoreA.isResource()) {
+      componentStoreA.iterateResource()
+    } else {
+      chainsA.iterateChain()
+    },
+    if (componentStoreB.isResource()) {
+      componentStoreB.iterateResource()
+    } else {
+      chainsB.iterateChain()
+    },
+    if (componentStoreC.isResource()) {
+      componentStoreC.iterateResource()
+    } else {
+      chainsC.iterateChain()
+    }
   )
 }
 
@@ -183,7 +377,67 @@ interface System {
   def run(): Unit
 }
 
-def createSystem() { body: => Unit } = {
+def systemFun() { body: => Unit } = {
+  fun() {
+    body();
+  }
+}
+
+def systemFun[
+  A
+]() { body: (
+  Iterator[A] at {global}
+) => Unit } = {
+  fun(
+    iterA: Iterator[A] at {global}
+  ) {
+    body(
+      iterA
+    );
+  }
+}
+
+def systemFun[
+  A,
+  B
+]() { body: (
+  Iterator[A] at {global},
+  Iterator[B] at {global}
+) => Unit } = {
+  fun(
+    iterA: Iterator[A] at {global},
+    iterB: Iterator[B] at {global}
+  ) {
+    body(
+      iterA,
+      iterB
+    );
+  }
+}
+
+def systemFun[
+  A,
+  B,
+  C
+]() { body: (
+  Iterator[A] at {global},
+  Iterator[B] at {global},
+  Iterator[C] at {global}
+) => Unit } = {
+  fun(
+    iterA: Iterator[A] at {global},
+    iterB: Iterator[B] at {global},
+    iterC: Iterator[C] at {global}
+  ) {
+    body(
+      iterA,
+      iterB,
+      iterC
+    );
+  }
+}
+
+def createSystem(body: => Unit at {global, io}) = {
   new System {
     def run() = {
       body();
@@ -242,6 +496,43 @@ def createSystem[
   }
 }
 
+def createSystem[
+  A,
+  B,
+  C
+](body: (
+  Iterator[A] at {global},
+  Iterator[B] at {global},
+  Iterator[C] at {global}
+) => Unit at {global, io}): System at {global, io} / {
+  ComponentManager[A],
+  ComponentManager[B],
+  ComponentManager[C]
+} = {
+  val componentStoreA = do getComponentStore[A]();
+  val componentStoreB = do getComponentStore[B]();
+  val componentStoreC = do getComponentStore[C]();
+  new System {
+    def run() = {
+      getArchIterators(
+        componentStoreA,
+        componentStoreB,
+        componentStoreC
+      ) match {
+        case (
+          iterA,
+          iterB,
+          iterC
+        ) => body(
+          iterA,
+          iterB,
+          iterC
+        );
+      }
+    }
+  }
+}
+
 interface World {
   def pushBackSystem(system: System at {global, io}): Unit
   def stepWorld(): Unit
@@ -252,7 +543,7 @@ def defaultWorld() { prog: => Unit / World }: Unit / {} = {
   val systems: ResizableArray[System at {global, io}] = resizableArray();
   def step() = {
     systems.foreach() { system =>
-      system.run();
+      system.run()
     };
   }
   try {
