@@ -50,7 +50,45 @@ def updateTimeState(timeState: TimeState): TimeState = {
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
 
+def testEcs() = {
+  with defaultTypeManager();
+  with componentManager[Int]();
+  with componentManager[Double]();
+
+  val intComps = do getComponentStore[Int]();
+  val doubleComps = do getComponentStore[Double]();
+
+  intComps.push[Int](0, 0);
+
+  intComps.push[Int](1, 10);
+  intComps.push[Int](1, 15);
+  doubleComps.push[Double](1, 10.1);
+  doubleComps.push[Double](1, 15.1);
+
+  doubleComps.push[Double](2, 20.2);
+
+  intComps.push[Int](3, 30);
+  doubleComps.push[Double](3, 30.3);
+
+  with defaultWorld();
+  do pushBackSystem(
+    createSystem[Int, Double](
+      fun(ints: Iterator[Int] at {global, io}, doubles: Iterator[Double] at {global, io}) {
+        foreachRef(ints, doubles) { (i, d) =>
+          println("Int: " ++ i.get().show());
+          println("Double: " ++ d.get().show());
+          ()
+        }
+      }
+    )
+  );
+  do stepWorld();
+  ()
+}
+
 def main() = {
+  testEcs();
+
   resizeCanvas();
   registerEvents();
   

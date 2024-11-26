@@ -1,3 +1,5 @@
+module renderer
+
 import game_engine_lib/core
 
 extern type CanvasElement
