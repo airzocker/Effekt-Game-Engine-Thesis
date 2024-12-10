@@ -51,14 +51,10 @@ def updateTimeState(timeState: TimeState): TimeState = {
 }
 
 def testEcs() = {
-  with defaultTypeManager();
-  with componentManager[Int]();
-  with componentManager[Double]();
-  with resourceManager[String]("TestString");
+  with componentStore[Int]();
+  with componentStore[Double]();
 
-  val intComps = do getComponentStore[Int]();
-  val doubleComps = do getComponentStore[Double]();
-
+  /*
   intComps.push[Int](0, 0);
 
   intComps.push[Int](1, 10);
@@ -70,8 +66,10 @@ def testEcs() = {
 
   intComps.push[Int](3, 30);
   doubleComps.push[Double](3, 30.3);
+  */
 
   with defaultWorld();
+  /*
   do pushBackSystem(
     createSystem[Int, Double, String](
       systemFun() { (ints, doubles, string) =>
@@ -87,6 +85,17 @@ def testEcs() = {
       }
     )
   );
+  */
+
+  with testFun() {
+    println("hello");
+  };
+  do run();
+  with testFun() {
+    println("wassup");
+  };
+  do run();
+
   do stepWorld();
   ()
 }
