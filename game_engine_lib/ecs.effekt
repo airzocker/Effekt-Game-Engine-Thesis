@@ -1,7 +1,6 @@
 module ecs
 
 import resizable_array
-import mutable/map
 import io
 import io/time
 import stream
@@ -14,7 +13,7 @@ interface ArchStore[T] {
 }
 
 def archStore[T](entities: ResizableArray[T]) { prog: => Unit / ArchStore[T] } = {
-  val store = resizableArray[T](4);
+  val store = entities;
   try {
     prog();
   } with ArchStore[T] {

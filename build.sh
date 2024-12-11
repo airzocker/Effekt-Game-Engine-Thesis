@@ -1,1 +1,1 @@
-effekt.sh --build main.effekt
+effekt.sh --build --backend=js-web main.effekt
