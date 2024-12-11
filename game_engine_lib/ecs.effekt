@@ -2,134 +2,76 @@ module ecs
 
 import resizable_array
 import mutable/map
+import io
+import io/time
+import stream
 
 import game_engine_lib/core
+import game_engine_lib/engine
 
-interface ComponentStore[T] {
-  def get(archId: Int, index: Int): T
-  def set(archId: Int, index: Int, value: T): Unit
-  def push(archId: Int, value: T): Int
-  def swapRemove(archId: Int, index: Int): Option[Int]
-  def iterateArch(archId: Int): Iterator[T] at {global}
-  def getArchIdToIndexMap(): Map[Int, Int]
+interface ArchStore[T] {
+  def iterArch() { action: T => Unit }: Unit  
 }
 
-def componentStore[T]{ prog: => Unit / ComponentStore[T] }: Unit = {
-  val archVectors = resizableArray[ResizableArray[T]](4);
-  val archIdToIndexMap = emptyMap[Int, Int]();
-  val archIndexToIdMap = emptyMap[Int, Int]();
+def archStore[T](entities: ResizableArray[T]) { prog: => Unit / ArchStore[T] } = {
+  val store = resizableArray[T](4);
   try {
     prog();
-  } with ComponentStore[T] {
-    def get(archId: Int, index: Int) = {
-      resume(
-        archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeGet(index)
-      )
-    }
-    def set(archId: Int, index: Int, value: T) = {
-      resume(
-        archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).unsafeSet(index, value)
-      )
-    }
-    def push(archId: Int, value: T) = {
-      resume(
-        archIdToIndexMap.get(archId) match {        
-          case Some(archIndex) => archVectors.unsafeGet(archIndex).add(value)
-          case None() => {
-            val newArchIndex = archVectors.size();
-            val newArchVector = resizableArray(4);
-            newArchVector.add(value);
-            archVectors.add(newArchVector);
-            archIdToIndexMap.update(archId, newArchIndex);
-            archIndexToIdMap.update(newArchIndex, archId)
-            0
-          }
-        }
-      )
-    }
-    def swapRemove(archId: Int, index: Int) = {
-      val archIndex = archIdToIndexMap.unsafeGet(archId);
-      val arr = archVectors.unsafeGet(archIndex);
-      val swapIndex = arr.removeSwap(index);
-      if (arr.size() == 0) {
-        archVectors.removeSwap(archIndex) match {
-          case Some(i) => {
-            val swappedArchId = archIndexToIdMap.unsafeGet(i);
-            archIndexToIdMap.update(archIndex, swappedArchId);
-            archIdToIndexMap.update(swappedArchId, archIndex);
-          }
-          case None() => ()
-        }
-        archIndexToIdMap.delete(archVectors.size());
-        archIdToIndexMap.delete(archId);
+  } with ArchStore[T] {
+    def iterArch() = {
+      resume { { action } =>
+        foreach[T](store) { action }
       }
-      resume(
-        swapIndex
-      )
-    }
-    def iterateArch(archId: Int) = {
-      resume(
-        archVectors.unsafeGet(archIdToIndexMap.unsafeGet(archId)).iterate()
-      )
-    }
-    def getArchIdToIndexMap() = {
-      resume(
-        archIdToIndexMap
-      )
     }
   }
 }
 
 interface System {
-  def run(): Unit
+  def step(): Unit
 }
 
-def testFun() { test: => Unit } { prog: => Unit / System }: Unit = {
+def defaultSystem() { prog: => Unit / System } = {
   try {
     prog();
   } with System {
-    def run() = {
-      test();
+    def step() = {
+      resume(())
+    }
+  }
+}
+
+def addSystem() { body: => Unit } { prog: => Unit / System }: Unit / System = {
+  try {
+    prog();
+  } with System {
+    def step() = {
+      do step();
+      body();
       resume(())
     }
   }
 }
 
 interface World {
-  //def pushBackSystem() { body: => Unit }: Unit
   def stepWorld(): Unit
   def runWorld(): Unit
 }
 
-def defaultWorld() { prog: => Unit / World }: Unit = {
-  val systems: ResizableArray[System at {global, io}] = resizableArray();
-  def step() = {
-    systems.foreach() { system =>
-      system.run()
-    };
-  }
+def defaultWorld() { prog: => Unit / World }: Unit / System = {
   try {
     prog();
   } with World {
-    /*
-    def pushBackSystem() { body: => Unit } = {
-      val system = new System {
-        def run() = {
-          body();
-        }
-      }
-      resume(
-        systems.add(system)
-      )
-    }
-    */
     def stepWorld() = {
-      step();
+      do step();
       resume(())
     }
     def runWorld() = {
       loop { { l } =>
-        step();
+        if (isInputEscape()) {
+          l.break();
+        }
+        await(promise(box { wait(0) } ));
+        do step();
       }
     }
   }

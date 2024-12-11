@@ -1,5 +1,6 @@
 module renderer
 
+import game_engine_lib/math
 import game_engine_lib/core
 
 extern type CanvasElement
@@ -13,7 +14,7 @@ interface Context {
   def initFont(fontSize: Int): Unit
 }
 
-def defaultContext[R] { prog: () => R / Context }: R / {} = {
+def defaultContext[R] { prog: () => R / Context }: R = {
   val canvas = getCanvas()
   val ctx = canvas.getContext;
 
@@ -22,7 +23,7 @@ def defaultContext[R] { prog: () => R / Context }: R / {} = {
   prog()
 }
 
-def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R / {} = {
+def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R = {
   try { prog() }
   with Context {
     def fillStyle(color) = { jsFillStyle(ctx, "rgb(" ++ show(color.r) ++ " " ++ show(color.g) ++ " " ++ show(color.b) ++ ")"); resume(()) }

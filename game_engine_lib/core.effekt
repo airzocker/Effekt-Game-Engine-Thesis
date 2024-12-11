@@ -2,6 +2,7 @@ module core
 
 import mutable/map
 import resizable_array
+import stream
 
 // Map delete extension
 extern js """
@@ -14,6 +15,7 @@ function map$delete(m, key) {
 extern io def delete[K, V](m: Map[K, V], key: K): Unit =
   js "map$delete(${m}, ${key})"
 
+// Returns the index that got swapped away (to the removed index), if any
 def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
   val newSize = arr.size() - 1;
   var swapped = None();
@@ -26,418 +28,116 @@ def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
   } with Exception[OutOfBounds] {
     def raise(exception: OutOfBounds, msg: String) = {
       panic("OutOfBounds: " ++ msg);
-    };
+    }
   }
   swapped
 }
 
-interface Iterator[T] {
-  def next(): Option[T]
-  def setLastValue(value: T): Unit
-  def reset(): Unit
+def each[T](array: ResizableArray[T]): Unit / emit[T] = {
+  val n = array.size();
+  def go(i: Int): Unit = {
+    if (i < n) {
+      do emit(array.unsafeGet(i));
+      go(i + 1);
+    }
+  };
+  go(0);
 }
 
-def iterate[T](arr: ResizableArray[T]) = {
-  val arr = arr;
-  var nextIndex in global = 0;
-  new Iterator[T] {
-    def next() = {
-      if (nextIndex < arr.size()) {
-        nextIndex = nextIndex + 1;
-        Some(arr.unsafeGet(nextIndex - 1))
-      } else {
-        None()
-      }
-    }
-    def setLastValue(value: T) = {
-      val i = nextIndex - 1;
-      if (i >= 0 && i < arr.size()) {
-        arr.unsafeSet(i, value)
-      }
-    }
-    def reset() = {
-      nextIndex = 0;
-    }
-  }
-}
-
-def iterateChain[T](arr: ResizableArray[Iterator[T] at {global}]) = {
-  val arr = arr;
-  var nextIndex in global = 0;
-  new Iterator[T] {
-    def next() = {
-      if (nextIndex < arr.size()) {
-        var value = arr.unsafeGet(nextIndex).next();
-        while (value.isEmpty() && nextIndex + 1 < arr.size()) {
-          nextIndex = nextIndex + 1;
-          value = arr.unsafeGet(nextIndex).next();
-        }
-        value
-      } else {
-        None()
-      }
-    }
-    def setLastValue(value: T) = {
-      if (nextIndex < arr.size()) {
-        arr.unsafeGet(nextIndex).setLastValue(value);
-      }
-    }
-    def reset() = {
-      nextIndex = 0;
-      arr.foreach() { iter =>
-        iter.reset();
-      }
-    }
-  }
-}
-
-def iterateLoop[T](iterator: Iterator[T] at {global}) = {
-  val iterator = iterator;
-  new Iterator[T] {
-    def next() = {
-      iterator.next() match {
-        case Some(value) => Some(value)
-        case None() => {
-          iterator.reset();
-          iterator.next()
-        }
-      }
-    }
-    def setLastValue(value: T) = {
-      iterator.setLastValue(value);
-    }
-    def reset() = {
-      iterator.reset();
-    }
-  }
-}
-
-def iterateValue[T](value: T) = {
-  var iterValue in global = value;
-  var hasNextValue in global = true;
-  new Iterator[T] {
-    def next() = {
-      if (hasNextValue) {
-        hasNextValue = false;
-        Some(iterValue)
-      } else {
-        None()
-      }
-    }
-    def setLastValue(value: T) = {
-      if (not(hasNextValue)) {
-        iterValue = value;
-      }
-    }
-    def reset() = {
-      hasNextValue = true;
-    }
-  }
-}
-
-def foreachRef[
-  A
-](
-  iterA: Iterator[A] at {global, io}
-) { body: (
-  Ref[A]
-) => Unit } = {
-  iterA.reset();
-  val refA = allocate();
-  loop { { l } =>
-    iterA.next() match {
-      case Some(a) => {
-        refA.set(a);
-        body(
-          refA
-        );
-        iterA.setLastValue(refA.get());
-      }
-      case _ => {
-        l.break();
-      }
-    }
-  }
-}
-
-def foreachRef[
+/*
+def zip[
   A,
   B
-](
-  iterA: Iterator[A] at {global, io},
-  iterB: Iterator[B] at {global, io}
-) { body: (
-  Ref[A],
-  Ref[B]
-) => Unit } = {
-  iterA.reset();
-  iterB.reset();
-  val refA = allocate();
-  val refB = allocate();
-  loop { { l } =>
-    (
-      iterA.next(),
-      iterB.next()
-    ) match {
-      case (
-        Some(a),
-        Some(b)
-      ) => {
-        refA.set(a);
-        refB.set(b);
-        body(
-          refA,
-          refB
-        );
-        iterA.setLastValue(refA.get());
-        iterB.setLastValue(refB.get());
-      }
-      case _ => {
-        l.break();
-      }
+] { prog: => Unit / { stop, read[(
+  A,
+  B
+)] } }: Unit / {
+  stop,
+  read[A],
+  read[B]
+} = {
+  try {
+    prog();
+  } with read[(
+    A,
+    B
+  )] {
+    resume {
+      (
+        do read[A],
+        do read[B]
+      )
     }
   }
 }
 
-def foreachRef[
+def zip[
   A,
   B,
   C
-](
-  iterA: Iterator[A] at {global, io},
-  iterB: Iterator[B] at {global, io},
-  iterC: Iterator[C] at {global, io}
-) { body: (
-  Ref[A],
-  Ref[B],
-  Ref[C]
-) => Unit } = {
-  iterA.reset();
-  iterB.reset();
-  iterC.reset();
-  val refA = allocate();
-  val refB = allocate();
-  val refC = allocate();
-  loop { { l } =>
-    (
-      iterA.next(),
-      iterB.next(),
-      iterC.next()
-    ) match {
-      case (
-        Some(a),
-        Some(b),
-        Some(c)
-      ) => {
-        refA.set(a);
-        refB.set(b);
-        refC.set(c);
-        body(
-          refA,
-          refB,
-          refC
-        );
-        iterA.setLastValue(refA.get());
-        iterB.setLastValue(refB.get());
-        iterC.setLastValue(refC.get());
-      }
-      case _ => {
-        l.break();
-      }
+] { prog: => Unit / { stop, read[(
+  A,
+  B,
+  C
+)] } }: Unit / {
+  stop,
+  read[A],
+  read[B],
+  read[C]
+} = {
+  try {
+    prog();
+  } with read[(
+    A,
+    B,
+    C
+  )] {
+    resume {
+      (
+        do read[A],
+        do read[B],
+        do read[C]
+      )
     }
   }
 }
 
-def foreachRef[
+def zip[
   A,
   B,
   C,
   D
-](
-  iterA: Iterator[A] at {global, io},
-  iterB: Iterator[B] at {global, io},
-  iterC: Iterator[C] at {global, io},
-  iterD: Iterator[D] at {global, io}
-) { body: (
-  Ref[A],
-  Ref[B],
-  Ref[C],
-  Ref[D]
-) => Unit } = {
-  iterA.reset();
-  iterB.reset();
-  iterC.reset();
-  iterD.reset();
-  val refA = allocate();
-  val refB = allocate();
-  val refC = allocate();
-  val refD = allocate();
-  loop { { l } =>
-    (
-      iterA.next(),
-      iterB.next(),
-      iterC.next(),
-      iterD.next()
-    ) match {
-      case (
-        Some(a),
-        Some(b),
-        Some(c),
-        Some(d)
-      ) => {
-        refA.set(a);
-        refB.set(b);
-        refC.set(c);
-        refD.set(d);
-        body(
-          refA,
-          refB,
-          refC,
-          refD
-        );
-        iterA.setLastValue(refA.get());
-        iterB.setLastValue(refB.get());
-        iterC.setLastValue(refC.get());
-        iterD.setLastValue(refD.get());
-      }
-      case _ => {
-        l.break();
-      }
+] { prog: => Unit / { stop, read[(
+  A,
+  B,
+  C,
+  D
+)] } }: Unit / {
+  stop,
+  read[A],
+  read[B],
+  read[C],
+  read[D]
+} = {
+  try {
+    prog();
+  } with read[(
+    A,
+    B,
+    C,
+    D
+  )] {
+    resume {
+      (
+        do read[A],
+        do read[B],
+        do read[C],
+        do read[D]
+      )
     }
   }
 }
-
-record Vector2(x: Double, y: Double)
-
-def setX(v: Vector2, d: Double): Vector2 = {
-  Vector2(d, v.y)
-}
-
-def setY(v: Vector2, d: Double): Vector2 = {
-  Vector2(v.x, d)
-}
-
-def infixAdd(v1: Vector2, v2: Vector2): Vector2 = {
-  Vector2(v1.x + v2.x, v1.y + v2.y)
-}
-
-def infixAdd(v: Vector2, d: Double): Vector2 = {
-  Vector2(v.x + d, v.y + d)
-}
-
-def infixSub(v1: Vector2, v2: Vector2): Vector2 = {
-  Vector2(v1.x - v2.x, v1.y - v2.y)
-}
-
-def infixSub(v: Vector2, d: Double): Vector2 = {
-  Vector2(v.x - d, v.y - d)
-}
-
-def infixMul(v: Vector2, d: Double): Vector2 = {
-  Vector2(v.x * d, v.y * d)
-}
-
-// Scalar (dot) product
-def infixMul(v1: Vector2, v2: Vector2): Double = {
-  v1.x * v2.x + v1.y * v2.y
-}
-
-def infixDiv(v: Vector2, d: Double): Vector2 = {
-  Vector2(v.x / d, v.y / d)
-}
-
-def length(v: Vector2): Double = {
-  sqrt(v.x * v.x + v.y * v.y)
-}
-
-def normalize(v: Vector2): Vector2 = {
-  val l = v.length();
-  if (l == 0.0) {
-    Vector2(0.0, 0.0)
-  } else {
-    v / l
-  }
-}
-
-def round(v: Vector2): Vector2 = {
-  Vector2(round(v.x).toDouble, round(v.y).toDouble)
-}
-
-def ceil(v: Vector2): Vector2 = {
-  Vector2(ceil(v.x).toDouble, ceil(v.y).toDouble)
-}
-
-def floor(v: Vector2): Vector2 = {
-  Vector2(floor(v.x).toDouble, floor(v.y).toDouble)
-}
-
-record Vector2Int(x: Int, y: Int)
-
-def setX(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(d, v.y)
-}
-
-def setY(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(v.x, d)
-}
-
-def toVector2(v: Vector2Int): Vector2 = {
-  Vector2(v.x.toDouble(), v.y.toDouble())
-}
-
-def infixAdd(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
-  Vector2Int(v1.x + v2.x, v1.y + v2.y)
-}
-
-def infixAdd(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(v.x + d, v.y + d)
-}
-
-def infixSub(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
-  Vector2Int(v1.x - v2.x, v1.y - v2.y)
-}
-
-def infixSub(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(v.x - d, v.y - d)
-}
-
-def infixMul(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(v.x * d, v.y * d)
-}
-
-// Scalar (dot) product
-def infixMul(v1: Vector2Int, v2: Vector2Int): Int = {
-  v1.x * v2.x + v1.y * v2.y
-}
-
-def infixDiv(v: Vector2Int, d: Int): Vector2Int = {
-  Vector2Int(v.x / d, v.y / d)
-}
-
-def length(v: Vector2Int): Double = {
-  sqrt((v.x * v.x + v.y * v.y).toDouble)
-}
-
-def normalize(v: Vector2Int): Vector2 = {
-  val l = v.length();
-  if (l == 0.0) {
-    Vector2(0.0, 0.0)
-  } else {
-    v.toVector2() / l
-  }
-}
-
-def round(v: Vector2): Vector2Int = {
-  Vector2Int(round(v.x), round(v.y))
-}
-
-def ceil(v: Vector2): Vector2Int = {
-  Vector2Int(ceil(v.x), ceil(v.y))
-}
-
-def floor(v: Vector2): Vector2Int = {
-  Vector2Int(floor(v.x), floor(v.y))
-}
+*/
 
 record Color(r: Int, g: Int, b: Int)
 

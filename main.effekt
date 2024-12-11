@@ -3,6 +3,7 @@ import resizable_array
 import io
 import io/time
 
+import game_engine_lib/math
 import game_engine_lib/core
 import game_engine_lib/ecs
 import game_engine_lib/engine
@@ -51,8 +52,25 @@ def updateTimeState(timeState: TimeState): TimeState = {
 }
 
 def testEcs() = {
-  with componentStore[Int]();
-  with componentStore[Double]();
+  val testIntDoubles = resizableArray(4);
+  testIntDoubles.add((1, 10.1));
+  testIntDoubles.add((2, 20.2));
+  testIntDoubles.add((3, 30.3));
+  testIntDoubles.add((4, 40.4));
+
+  with archStore[(Int, Double)](testIntDoubles);
+  
+  with defaultSystem();
+  with addSystem() {
+    do iterArch[(Int, Double)]() { value =>
+      value match {
+        case (int, double) => {
+          println("Int: " ++ int.show());
+          println("Double: " ++ double.show());
+        }
+      }
+    }
+  };
 
   /*
   intComps.push[Int](0, 0);
@@ -86,15 +104,6 @@ def testEcs() = {
     )
   );
   */
-
-  with testFun() {
-    println("hello");
-  };
-  do run();
-  with testFun() {
-    println("wassup");
-  };
-  do run();
 
   do stepWorld();
   ()
