@@ -444,6 +444,32 @@ interface Query[T] {
   def iterQueryRW() { prog: => Unit / { read[T], emit[T] } }: Unit / stop
 }
 
+def query[T]() { prog: => Unit / Query[T] }: Unit / Components[T] = {
+  val archIds = resizableArray[Int](4);
+  try {
+    prog();
+  } with Query[T] {
+    def update() = {
+      // TODO
+      ()
+    }
+    def iterQueryRO() = {
+      resume { { prog } =>
+        // TODO: Change all iters to foreach action instead of push/pull streams
+        with do iterTuplesRO[T](0);
+        prog();
+      }
+    }
+    def iterQueryRW() = {
+      resume { { prog } =>
+        // TODO: Change all iters to foreach action instead of push/pull streams
+        with do iterTuplesRW[T](0);
+        prog();
+      }
+    }
+  }
+}
+
 interface System {
   def step(): Unit
 }
