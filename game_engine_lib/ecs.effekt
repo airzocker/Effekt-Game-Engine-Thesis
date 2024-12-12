@@ -9,31 +9,30 @@ import stream
 import game_engine_lib/core
 import game_engine_lib/engine
 
-interface IterRO[T] {
+interface ComponentManager {
+  def nextComponentId(): Int
+}
+
+interface Component[T] {
+  def getId(): Int
   def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
-}
-
-interface IterRW[T] {
   def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
-}
-
-interface Modify[T] {
   def add(archId: Int, value: T): Int
   def removeSwap(archId: Int, index: Int): Option[Int]
 }
 
-def component[T]() { prog: => Unit / {
-  IterRO[T],
-  IterRW[T],
-  Modify[T]
-} } = {
-  val componentStores: Map[Int, ResizableArray[T]] = emptyMap();
+def component[T]() { prog: => Unit / Component[T] }: Unit / ComponentManager = {
+  val componentId = do nextComponentId();
+  val componentStore: Map[Int, ResizableArray[T]] = emptyMap();
   try {
     prog();
-  } with IterRO[T] {
+  } with Component[T] {
+    def getId() = {
+      resume(componentId)
+    }
     def iterRO(archId) = {
       resume { { prog } =>
-        val components = componentStores.unsafeGet(archId);
+        val components = componentStore.unsafeGet(archId);
         var index = 0;
         try {
           prog();
@@ -50,10 +49,9 @@ def component[T]() { prog: => Unit / {
         }
       }
     }
-  } with IterRW[T] {
     def iterRW(archId) = {
       resume { { prog } =>
-        val components = componentStores.unsafeGet(archId);
+        val components = componentStore.unsafeGet(archId);
         var readIndex = 0;
         var writeIndex = 0;
         try {
@@ -77,13 +75,12 @@ def component[T]() { prog: => Unit / {
         }
       }
     }
-  } with Modify[T] {
     def add(archId, value) = {
-      val components = componentStores.get(archId) match {
+      val components = componentStore.get(archId) match {
         case Some(components) => components
         case None() =>
           val components = resizableArray(4);
-          componentStores.update(archId, components);
+          componentStore.update(archId, components);
           components
       }
       val index = components.size();
@@ -91,29 +88,374 @@ def component[T]() { prog: => Unit / {
       resume(index)
     }
     def removeSwap(archId, index) = {
-      val components = componentStores.unsafeGet(archId);
+      val components = componentStore.unsafeGet(archId);
       val swapped = components.removeSwap(index);
       if (components.size() == 0) {
-        componentStores.delete(archId);
+        componentStore.delete(archId);
       }
       resume(swapped)
     }
   }
 }
 
+interface Components[T] {
+  def getIds(): Array[Int]
+  def iterTuplesRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
+  def iterTuplesRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
+}
+
+def zipComponents[
+  A
+]() { prog: => Unit / Components[(
+  A
+)] }: Unit / {
+  Component[A]
+} = {
+  val componentIds = fromList([
+    do getId[A]()
+  ]);
+  try {
+    prog();
+  } with Components[(
+    A
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        try {
+          prog();
+        } with read[(
+          A
+        )] {
+          resume {
+            (
+              do read[A]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        try {
+          prog();
+        } with read[(
+          A
+        )] {
+          resume {
+            (
+              do read[A]()
+            )
+          }
+        } with emit[(
+          A
+        )] { value =>
+          value match {
+            case a =>
+              do emit(a);
+          }
+          resume(())
+        }
+      }
+    }
+  }
+}
+
+def zipComponents[
+  A,
+  B
+]() { prog: => Unit / Components[(
+  A,
+  B
+)] }: Unit / {
+  Component[A],
+  Component[B]
+} = {
+  val componentIds = fromList([
+    do getId[A],
+    do getId[B]
+  ]);
+  try {
+    prog();
+  } with Components[(
+    A,
+    B
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        with do iterRO[B](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        with do iterRW[B](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B]()
+            )
+          }
+        } with emit[(
+          A,
+          B
+        )] { value =>
+          value match {
+            case (
+              a,
+              b
+            ) =>
+              do emit(a);
+              do emit(b);
+          }
+          resume(())
+        }
+      }
+    }
+  }
+}
+
+def zipComponents[
+  A,
+  B,
+  C
+]() { prog: => Unit / Components[(
+  A,
+  B,
+  C
+)] }: Unit / {
+  Component[A],
+  Component[B],
+  Component[C]
+} = {
+  val componentIds = fromList([
+    do getId[A],
+    do getId[B],
+    do getId[C]
+  ]);
+  try {
+    prog();
+  } with Components[(
+    A,
+    B,
+    C
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        with do iterRO[B](archId);
+        with do iterRO[C](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        with do iterRW[B](archId);
+        with do iterRW[C](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C]()
+            )
+          }
+        } with emit[(
+          A,
+          B,
+          C
+        )] { value =>
+          value match {
+            case (
+              a,
+              b,
+              c
+            ) =>
+              do emit(a);
+              do emit(b);
+              do emit(c);
+          }
+          resume(())
+        }
+      }
+    }
+  }
+}
+
+def zipComponents[
+  A,
+  B,
+  C,
+  D
+]() { prog: => Unit / Components[(
+  A,
+  B,
+  C,
+  D
+)] }: Unit / {
+  Component[A],
+  Component[B],
+  Component[C],
+  Component[D]
+} = {
+  val componentIds = fromList([
+    do getId[A],
+    do getId[B],
+    do getId[C],
+    do getId[D]
+  ]);
+  try {
+    prog();
+  } with Components[(
+    A,
+    B,
+    C,
+    D
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        with do iterRO[B](archId);
+        with do iterRO[C](archId);
+        with do iterRO[D](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        with do iterRW[B](archId);
+        with do iterRW[C](archId);
+        with do iterRW[D](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D]()
+            )
+          }
+        } with emit[(
+          A,
+          B,
+          C,
+          D
+        )] { value =>
+          value match {
+            case (
+              a,
+              b,
+              c,
+              d
+            ) =>
+              do emit(a);
+              do emit(b);
+              do emit(c);
+              do emit(d);
+          }
+          resume(())
+        }
+      }
+    }
+  }
+}
+
+interface Query[T] {
+  def update(): Unit
+  def iterQueryRO() { prog: => Unit / read[T] }: Unit / stop
+  def iterQueryRW() { prog: => Unit / { read[T], emit[T] } }: Unit / stop
+}
+
 interface System {
   def step(): Unit
 }
 
-def addSystemRO[T]() { action: T => Unit } { prog: => Unit / System }: Unit / { System, IterRO[T] } = {
+def addSystemRO[T]() { action: T => Unit } { prog: => Unit / System }: Unit / { System, Query[T] } = {
   try {
     prog();
   } with System {
     def step() = {
       do step();
       try {
-        // TODO: Actually query the correct indices & convert to query/arch iterator
-        with do iterRO[T](0);
+        with do iterQueryRO[T]();
         loop {
           action(do read());
         }
@@ -125,15 +467,14 @@ def addSystemRO[T]() { action: T => Unit } { prog: => Unit / System }: Unit / { 
   }
 }
 
-def addSystemRW[T]() { action: T => T } { prog: => Unit / System }: Unit / { System, IterRW[T] } = {
+def addSystemRW[T]() { action: T => T } { prog: => Unit / System }: Unit / { System, Query[T] } = {
   try {
     prog();
   } with System {
     def step() = {
       do step();
       try {
-        // TODO: Actually query the correct indices & convert to query/arch iterator
-        with do iterRW[T](0);
+        with do iterQueryRW[T]();
         loop {
           do emit(action(do read()));
         }
@@ -150,7 +491,8 @@ interface World {
   def runWorld(): Unit / System
 }
 
-def defaultWorld() { prog: => Unit / { World, System } } = {
+def defaultWorld() { prog: => Unit / { World, System, ComponentManager } } = {
+  var lastComponentId = 0;
   try {
     prog();
   } with World {
@@ -173,6 +515,11 @@ def defaultWorld() { prog: => Unit / { World, System } } = {
   } with System {
     def step() = {
       resume(())
+    }
+  } with ComponentManager {
+    def nextComponentId() = {
+      lastComponentId = lastComponentId + 1;
+      resume(lastComponentId)
     }
   }
 }
