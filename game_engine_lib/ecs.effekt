@@ -1,6 +1,7 @@
 module ecs
 
 import resizable_array
+import mutable/map
 import io
 import io/time
 import stream
@@ -8,19 +9,94 @@ import stream
 import game_engine_lib/core
 import game_engine_lib/engine
 
-interface ArchStore[T] {
-  def iterArch() { action: T => Unit }: Unit  
+interface IterRO[T] {
+  def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
 }
 
-def archStore[T](entities: ResizableArray[T]) { prog: => Unit / ArchStore[T] } = {
-  val store = entities;
+interface IterRW[T] {
+  def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
+}
+
+interface Modify[T] {
+  def add(archId: Int, value: T): Int
+  def removeSwap(archId: Int, index: Int): Option[Int]
+}
+
+def component[T]() { prog: => Unit / {
+  IterRO[T],
+  IterRW[T],
+  Modify[T]
+} } = {
+  val componentStores: Map[Int, ResizableArray[T]] = emptyMap();
   try {
     prog();
-  } with ArchStore[T] {
-    def iterArch() = {
-      resume { { action } =>
-        foreach[T](store) { action }
+  } with IterRO[T] {
+    def iterRO(archId) = {
+      resume { { prog } =>
+        val components = componentStores.unsafeGet(archId);
+        var index = 0;
+        try {
+          prog();
+        } with read[T] {
+          resume {
+            if (index < components.size()) {
+              val component = components.unsafeGet(index);
+              index = index + 1;
+              component
+            } else {
+              do stop()
+            }
+          }
+        }
       }
+    }
+  } with IterRW[T] {
+    def iterRW(archId) = {
+      resume { { prog } =>
+        val components = componentStores.unsafeGet(archId);
+        var readIndex = 0;
+        var writeIndex = 0;
+        try {
+          prog();
+        } with read[T] {
+          resume {
+            if (readIndex < components.size()) {
+              val component = components.unsafeGet(readIndex);
+              readIndex = readIndex + 1;
+              component
+            } else {
+              do stop()
+            }
+          }
+        } with emit[T] { value =>
+          if (writeIndex < components.size()) {
+            components.unsafeSet(writeIndex, value);
+            writeIndex = writeIndex + 1;
+          }
+          resume(())
+        }
+      }
+    }
+  } with Modify[T] {
+    def add(archId, value) = {
+      val components = componentStores.get(archId) match {
+        case Some(components) => components
+        case None() =>
+          val components = resizableArray(4);
+          componentStores.update(archId, components);
+          components
+      }
+      val index = components.size();
+      components.add(value);
+      resume(index)
+    }
+    def removeSwap(archId, index) = {
+      val components = componentStores.unsafeGet(archId);
+      val swapped = components.removeSwap(index);
+      if (components.size() == 0) {
+        componentStores.delete(archId);
+      }
+      resume(swapped)
     }
   }
 }
@@ -29,49 +105,74 @@ interface System {
   def step(): Unit
 }
 
-def defaultSystem() { prog: => Unit / System } = {
-  try {
-    prog();
-  } with System {
-    def step() = {
-      resume(())
-    }
-  }
-}
-
-def addSystem() { body: => Unit } { prog: => Unit / System }: Unit / System = {
+def addSystemRO[T]() { action: T => Unit } { prog: => Unit / System }: Unit / { System, IterRO[T] } = {
   try {
     prog();
   } with System {
     def step() = {
       do step();
-      body();
+      try {
+        // TODO: Actually query the correct indices & convert to query/arch iterator
+        with do iterRO[T](0);
+        loop {
+          action(do read());
+        }
+      } with stop {
+        ()
+      }
+      resume(())
+    }
+  }
+}
+
+def addSystemRW[T]() { action: T => T } { prog: => Unit / System }: Unit / { System, IterRW[T] } = {
+  try {
+    prog();
+  } with System {
+    def step() = {
+      do step();
+      try {
+        // TODO: Actually query the correct indices & convert to query/arch iterator
+        with do iterRW[T](0);
+        loop {
+          do emit(action(do read()));
+        }
+      } with stop {
+        ()
+      }
       resume(())
     }
   }
 }
 
 interface World {
-  def stepWorld(): Unit
-  def runWorld(): Unit
+  def stepWorld(): Unit / System
+  def runWorld(): Unit / System
 }
 
-def defaultWorld() { prog: => Unit / World }: Unit / System = {
+def defaultWorld() { prog: => Unit / { World, System } } = {
   try {
     prog();
   } with World {
     def stepWorld() = {
-      do step();
-      resume(())
-    }
-    def runWorld() = {
-      loop { { l } =>
-        if (isInputEscape()) {
-          l.break();
-        }
-        await(promise(box { wait(0) } ));
+      resume {
         do step();
       }
+    }
+    def runWorld() = {
+      resume {
+        loop { { l } =>
+          if (isInputEscape()) {
+            l.break();
+          }
+          await(promise(box { wait(0) } ));
+          do step();
+        }
+      }
+    }
+  } with System {
+    def step() = {
+      resume(())
     }
   }
 }

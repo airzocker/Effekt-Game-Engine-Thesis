@@ -44,7 +44,6 @@ def each[T](array: ResizableArray[T]): Unit / emit[T] = {
   go(0);
 }
 
-/*
 def zip[
   A,
   B
@@ -137,7 +136,108 @@ def zip[
     }
   }
 }
-*/
+
+def unzip[
+  A,
+  B
+] { prog: => Unit / emit[(
+  A,
+  B
+)] }: Unit / {
+  emit[A],
+  emit[B]
+} = {
+  try {
+    prog();
+  } with emit[(
+    A,
+    B
+  )] {
+    value => value match {
+      case (
+        a,
+        b
+      ) =>
+        do emit(a);
+        do emit(b);
+        resume(())
+    }
+  }
+}
+
+def unzip[
+  A,
+  B,
+  C
+] { prog: => Unit / emit[(
+  A,
+  B,
+  C
+)] }: Unit / {
+  emit[A],
+  emit[B],
+  emit[C]
+} = {
+  try {
+    prog();
+  } with emit[(
+    A,
+    B,
+    C
+  )] {
+    value => value match {
+      case (
+        a,
+        b,
+        c
+      ) =>
+        do emit(a);
+        do emit(b);
+        do emit(c);
+        resume(())
+    }
+  }
+}
+
+def unzip[
+  A,
+  B,
+  C,
+  D
+] { prog: => Unit / emit[(
+  A,
+  B,
+  C,
+  D
+)] }: Unit / {
+  emit[A],
+  emit[B],
+  emit[C],
+  emit[D]
+} = {
+  try {
+    prog();
+  } with emit[(
+    A,
+    B,
+    C,
+    D
+  )] {
+    value => value match {
+      case (
+        a,
+        b,
+        c,
+        d
+      ) =>
+        do emit(a);
+        do emit(b);
+        do emit(c);
+        do emit(d);
+        resume(())
+    }
+  }
+}
 
 record Color(r: Int, g: Int, b: Int)
 

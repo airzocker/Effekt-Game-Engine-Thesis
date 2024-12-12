@@ -52,16 +52,10 @@ def updateTimeState(timeState: TimeState): TimeState = {
 }
 
 def testEcs() = {
-  val testIntDoubles = resizableArray(4);
-  testIntDoubles.add((1, 10.1));
-  testIntDoubles.add((2, 20.2));
-  testIntDoubles.add((3, 30.3));
-  testIntDoubles.add((4, 40.4));
+  with defaultWorld();
 
-  with archStore[(Int, Double)](testIntDoubles);
-  
-  with defaultSystem();
-  with addSystem() {
+  //with addSystem() {
+    /*
     do iterArch[(Int, Double)]() { value =>
       value match {
         case (int, double) => {
@@ -70,7 +64,9 @@ def testEcs() = {
         }
       }
     }
-  };
+    */
+  //  ()
+  //};
 
   /*
   intComps.push[Int](0, 0);
@@ -86,7 +82,6 @@ def testEcs() = {
   doubleComps.push[Double](3, 30.3);
   */
 
-  with defaultWorld();
   /*
   do pushBackSystem(
     createSystem[Int, Double, String](
