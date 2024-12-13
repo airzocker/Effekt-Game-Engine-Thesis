@@ -52,7 +52,7 @@ def updateTimeState(timeState: TimeState): TimeState = {
 }
 
 def testEcs() = {
-  with defaultWorld();
+  with world();
 
   //with addSystem() {
     /*
