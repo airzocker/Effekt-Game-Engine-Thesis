@@ -33,15 +33,31 @@ def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
   swapped
 }
 
-def each[T](array: ResizableArray[T]): Unit / emit[T] = {
-  val n = array.size();
+def each[T](arr: ResizableArray[T]): Unit / emit[T] = {
+  val n = arr.size();
   def go(i: Int): Unit = {
     if (i < n) {
-      do emit(array.unsafeGet(i));
+      do emit(arr.unsafeGet(i));
       go(i + 1);
     }
   };
   go(0);
+}
+
+def bubbleSortInt(arr: ResizableArray[Int]): Unit = {
+  if (arr.size() < 2) {
+    return();
+  }
+  var swapped = false;
+  each(0, arr.size() - 1) { index =>
+    if (arr.unsafeGet(index) > arr.unsafeGet(index + 1)) {
+      arr.unsafeSwap(index, index + 1);
+      ()
+    }
+  }
+  if (swapped) {
+    bubbleSortInt(arr);
+  }
 }
 
 record Color(r: Int, g: Int, b: Int)

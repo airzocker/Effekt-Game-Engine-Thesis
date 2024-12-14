@@ -53,55 +53,34 @@ def updateTimeState(timeState: TimeState): TimeState = {
 
 def testEcs() = {
   with world();
-
-  //with addSystem() {
-    /*
-    do iterArch[(Int, Double)]() { value =>
-      value match {
-        case (int, double) => {
-          println("Int: " ++ int.show());
-          println("Double: " ++ double.show());
-        }
+  
+  with component[Int]();
+  with component[Double]();
+  with component[String]();
+  
+  with zipComponents[Int, Double]();
+  with addSystemRO[(Int, Double)]() { value =>
+    value match {
+      case (int, double) => {
+        println("Int: " ++ int.show());
+        println("Double: " ++ double.show());
       }
     }
-    */
-  //  ()
-  //};
+  };
 
-  /*
-  intComps.push[Int](0, 0);
-
-  intComps.push[Int](1, 10);
-  intComps.push[Int](1, 15);
-  doubleComps.push[Double](1, 10.1);
-  doubleComps.push[Double](1, 15.1);
-
-  doubleComps.push[Double](2, 20.2);
-
-  intComps.push[Int](3, 30);
-  doubleComps.push[Double](3, 30.3);
-  */
-
-  /*
-  do pushBackSystem(
-    createSystem[Int, Double, String](
-      systemFun() { (ints, doubles, string) =>
-        string.next() match {
-          case Some(s) => println(s)
-          case _ => ()
-        }
-        foreachRef(ints, doubles) { (i, d) =>
-          println("Int: " ++ i.get().show());
-          println("Double: " ++ d.get().show());
-          ()
-        }
-      }
-    )
-  );
-  */
+  do addEntity[(Int, Double)]((1, 10.0));
+  do addEntity[(Int, Double)]((2, 20.0));
+  do addEntity[(Int, Double)]((3, 30.0));
+  
+  with zipComponents[Int, Double, String]();
+  do addEntity[(Int, Double, String)]((4, 40.0, "First Triple Entity"));
+  do addEntity[(Int, Double, String)]((5, 50.0, "Second Triple Entity"));
+  
+  with zipComponents[Int]();
+  do addEntity[Int](6);
+  do addEntity[Int](7);
 
   do stepWorld();
-  ()
 }
 
 def main() = {
