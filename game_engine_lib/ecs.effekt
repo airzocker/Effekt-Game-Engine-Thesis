@@ -848,27 +848,14 @@ def defaultSystem() { prog: => Unit / System } = {
   }
 }
 
-def addSystemRO[T]() { action: T => Unit } { prog: => Unit / System }: Unit / { ArchManager, System, Components[T] } = {
+def addSystem[T]() { body: => Unit / Query[T] } { prog: => Unit / System }: Unit / { ArchManager, System, Components[T] } = {
   with query[T]();
   try {
     prog();
   } with System {
     def step() = {
       do step();
-      do foreachRO[T]() { action }
-      resume(())
-    }
-  }
-}
-
-def addSystemRW[T]() { action: T => T } { prog: => Unit / System }: Unit / { ArchManager, System, Components[T] } = {
-  with query[T]();
-  try {
-    prog();
-  } with System {
-    def step() = {
-      do step();
-      do foreachRW[T]() { action }
+      body();
       resume(())
     }
   }

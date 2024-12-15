@@ -61,13 +61,15 @@ def testEcs() = {
   with createResource[Vector2](Vector2(1.1, 2.2));
   
   with zipComponents2[Int, Double]();
-  with addSystemRO[(Int, Double)]() { value =>
+  with addSystem[(Int, Double)]() {
     println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
     println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
-    value match {
-      case (int, double) => {
-        println("Int: " ++ int.show());
-        println("Double: " ++ double.show());
+    do foreachRO[(Int, Double)]() { values =>
+      values match {
+        case (int, double) => {
+          println("Int: " ++ int.show());
+          println("Double: " ++ double.show());
+        }
       }
     }
   };
