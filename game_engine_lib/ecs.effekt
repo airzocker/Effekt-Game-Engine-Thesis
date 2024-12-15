@@ -150,7 +150,7 @@ interface Components[T] {
   def removeSwapComponentTuple(archId: Int, index: Int): RemoveSwapResult
 }
 
-def zipComponents() { prog: => Unit / Components[Unit] } = {
+def defaultComponents() { prog: => Unit / Components[Unit] } = {
   val componentIds = resizableArray(0);
   try {
     prog();
@@ -193,7 +193,7 @@ def zipComponents() { prog: => Unit / Components[Unit] } = {
   }
 }
 
-def zipComponents[
+def zipComponents1[
   A
 ]() { prog: => Unit / Components[(
   A
@@ -266,7 +266,7 @@ def zipComponents[
   }
 }
 
-def zipComponents[
+def zipComponents2[
   A,
   B
 ]() { prog: => Unit / Components[(
@@ -361,7 +361,7 @@ def zipComponents[
   }
 }
 
-def zipComponents[
+def zipComponents3[
   A,
   B,
   C
@@ -473,7 +473,7 @@ def zipComponents[
   }
 }
 
-def zipComponents[
+def zipComponents4[
   A,
   B,
   C,
@@ -598,6 +598,26 @@ def zipComponents[
       resume(
         do removeSwapComponent[D](archId, index)
       )
+    }
+  }
+}
+
+interface Resource[T] {
+  def getResource(): T
+  def setResource(value: T): Unit
+}
+
+def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
+  var resourceValue = value;
+  try {
+    prog();
+  } with Resource[T] {
+    def getResource() = {
+      resume(resourceValue)
+    }
+    def setResource(value: T) = {
+      resourceValue = value;
+      resume(())
     }
   }
 }
@@ -864,6 +884,8 @@ def world() { prog: => Unit / { World, System, ComponentManager, ArchManager, En
   with componentManager();
   with archManager();
   with entityManager();
+  // TEMP
+  with defaultComponents();
   def stepWorld() = {
     do updateQueries();
     do step();

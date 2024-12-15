@@ -58,8 +58,12 @@ def testEcs() = {
   with component[Double]();
   with component[String]();
   
-  with zipComponents[Int, Double]();
+  with createResource[Vector2](Vector2(1.1, 2.2));
+  
+  with zipComponents2[Int, Double]();
   with addSystemRO[(Int, Double)]() { value =>
+    println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
+    println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
     value match {
       case (int, double) => {
         println("Int: " ++ int.show());
@@ -72,11 +76,11 @@ def testEcs() = {
   do addEntity[(Int, Double)]((2, 20.0));
   do addEntity[(Int, Double)]((3, 30.0));
   
-  with zipComponents[Int, Double, String]();
+  with zipComponents3[Int, Double, String]();
   do addEntity[(Int, Double, String)]((4, 40.0, "First Triple Entity"));
   do addEntity[(Int, Double, String)]((5, 50.0, "Second Triple Entity"));
   
-  with zipComponents[Int]();
+  with zipComponents1[Int]();
   do addEntity[Int](6);
   do addEntity[Int](7);
 
