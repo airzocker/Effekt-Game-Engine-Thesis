@@ -64,7 +64,8 @@ def testEcs() = {
   with addSystem[(Int, Double)]() {
     println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
     println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
-    do foreachRO[(Int, Double)]() { values =>
+    do foreachEntityRO[(Int, Double)]() { (entity, values) =>
+      println("Entity: " ++ entity.id.show());
       values match {
         case (int, double) => {
           println("Int: " ++ int.show());

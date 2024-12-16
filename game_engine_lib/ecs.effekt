@@ -13,11 +13,7 @@ record Entity(id: Int)
 
 record EntityData(archId: Int, componentIndex: Int)
 
-type RemoveSwapResult {
-  Swapped(index: Int);
-  NoSwap();
-  Empty();
-}
+record Arch(componentIds: ResizableArray[Int], entities: ResizableArray[Entity])
 
 interface ComponentManager {
   def nextComponentId(): Int
@@ -40,7 +36,7 @@ interface Component[T] {
   def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
   def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
   def addComponent(archId: Int, value: T): Int
-  def removeSwapComponent(archId: Int, index: Int): RemoveSwapResult
+  def removeSwapComponent(archId: Int, index: Int): Option[Int]
   def getComponent(archId: Int, index: Int): T
   def setComponent(archId: Int, index: Int, value: T): Unit
 }
@@ -116,12 +112,8 @@ def component[T]() { prog: => Unit / Component[T] }: Unit / ComponentManager = {
       val swapped = components.removeSwap(index);
       if (components.size() == 0) {
         componentStore.delete(archId);
-        resume(Empty())
       }
-      swapped match {
-        case Some(swapped) => resume(Swapped(swapped))
-        case None() => resume(NoSwap())
-      }
+      resume(swapped)
     }
     def getComponent(archId, index) = {
       resume(
@@ -147,7 +139,7 @@ interface Components[T] {
   def iterTuplesRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
   def iterTuplesRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
   def addComponentTuple(archId: Int, value: T): Int
-  def removeSwapComponentTuple(archId: Int, index: Int): RemoveSwapResult
+  def removeSwapComponentTuple(archId: Int, index: Int): Option[Int]
 }
 
 def defaultComponents() { prog: => Unit / Components[Unit] } = {
@@ -188,7 +180,7 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
     }
     def removeSwapComponentTuple(archId, index) = {
       println("removeSwapTuple for Unit Components makes no sense!");
-      resume(NoSwap())
+      resume(None())
     }
   }
 }
@@ -623,10 +615,21 @@ def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
 }
 
 interface ArchManager {
-  def addArch(componentIds: ResizableArray[Int]): Int
-  def removeArch(archId: Int): Unit
+  // Maybe for bulk entity operations later
+  //def addArch(componentIds: ResizableArray[Int]): Int
+  //def removeArch(archId: Int): Unit
+
   def addUpdateQuery(componentIds: ResizableArray[Int], archIds: Ref[ResizableArray[Int]]): Unit
   def updateQueries(): Unit
+  def iterEntitiesRO(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
+
+  // Maybe for bulk entity operations later
+  //def addEntity(archId: Int, entity: Entity): Int
+
+  // Returns archId:
+  def addEntity(componentIds: ResizableArray[Int], entity: Entity): Int
+  def removeSwapEntity(archId: Int, index: Int): Option[Int]
+  def getEntity(archId: Int, index: Int): Entity
 }
 
 def archManager() { prog: => Unit / ArchManager } = {
@@ -636,20 +639,29 @@ def archManager() { prog: => Unit / ArchManager } = {
   var updateQueries = resizableArray(4);
   def addArch(componentIds: ResizableArray[Int]) = {
     hasChanged = true;
+    val arch = Arch(componentIds, resizableArray(4));
     try {
-      archs.unsafeSet(freeIndices.popRight(), componentIds);
+      archs.unsafeSet(freeIndices.popRight(), arch);
     } with Exception[OutOfBounds] {
       def raise(_: OutOfBounds, _: String) = {
         ()
       }
     }
-    archs.add(componentIds);
+    archs.add(arch);
+  }
+  def removeArch(archId: Int) = {
+    if (archId < archs.size()) {
+      hasChanged = true;
+      archs.unsafeSet(archId, Arch(resizableArray(0), resizableArray(0)));
+      freeIndices.add(archId);
+      ()
+    }
   }
   def updateFindArchs(componentIds: ResizableArray[Int], archIds: Ref[ResizableArray[Int]]) = {
     val newArchIds = resizableArray(4);
     archs.foreachIndex() { (archId, arch) { l } =>
       var findIndex = 0;
-      arch.foreach() { (compnentId) { sl } =>
+      arch.componentIds.foreach() { (compnentId) { sl } =>
         if (findIndex >= componentIds.size()) {
           sl.break();
         }
@@ -671,9 +683,10 @@ def archManager() { prog: => Unit / ArchManager } = {
   try {
     prog();
   } with ArchManager {
+    /*
     def addArch(componentIds) = {
       var archId = -1;
-      archs.foreachIndex() { (id, arch) { l } =>
+      archs.componentIds.foreachIndex() { (id, arch) { l } =>
         if (arch.size() != componentIds.size()) {
           l.continue();
         }
@@ -691,14 +704,10 @@ def archManager() { prog: => Unit / ArchManager } = {
       resume(archId)
     }
     def removeArch(archId) = {
-      if (archId < archs.size()) {
-        hasChanged = true;
-        archs.unsafeSet(archId, resizableArray(0));
-        freeIndices.add(archId);
-        ()
-      }
+      removeArch(archId);
       resume(())
     }
+    */
     def addUpdateQuery(componentIds, archIds) = {
       updateQueries.add((componentIds, archIds));
       resume(())
@@ -716,6 +725,64 @@ def archManager() { prog: => Unit / ArchManager } = {
       }
       resume(())
     }
+    def iterEntitiesRO(archId) = {
+      resume { { prog } =>
+        val entities = archs.unsafeGet(archId).entities;
+        var index = 0;
+        try {
+          prog();
+        } with read[Entity] {
+          resume {
+            if (index < entities.size()) {
+              val entity = entities.unsafeGet(index);
+              index = index + 1;
+              entity
+            } else {
+              do stop()
+            }
+          }
+        }
+      }
+    }
+    /*
+    def addEntity(archId, entity) = {
+      val entities = archs.unsafeGet(archId).entities;
+      val index = entities.size();
+      entities.add(entity);
+      resume(index)
+    }
+    */
+    def addEntity(componentIds, entity) = {
+      var archId = -1;
+      archs.foreachIndex() { (id, arch) { l } =>
+        if (arch.componentIds.size() != componentIds.size()) {
+          l.continue();
+        }
+        each(0, arch.componentIds.size()) { index =>
+          if (arch.componentIds.unsafeGet(index) != componentIds.unsafeGet(index)) {
+            l.continue();
+          }
+        }
+        archId = id;
+        l.break();
+      }
+      if (archId < 0) {
+        archId = addArch(componentIds);
+      }
+      archs.unsafeGet(archId).entities.add(entity);
+      resume(archId)
+    }
+    def removeSwapEntity(archId, index) = {
+      val entities = archs.unsafeGet(archId).entities;
+      val swapped = entities.removeSwap(index);
+      if (entities.size() == 0) {
+        removeArch(archId);
+      }
+      resume(swapped)
+    }
+    def getEntity(archId, index) = {
+      resume(archs.unsafeGet(archId).entities.unsafeGet(index))
+    }
   }
 }
 
@@ -728,7 +795,6 @@ interface EntityManager {
 
 def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
   val entityDatas: Map[Entity, EntityData] = emptyMap();
-  val entityDataToEntity: Map[EntityData, Entity] = emptyMap();
   var lastEntityId = 0;
   def nextEntityId() = {
     lastEntityId = lastEntityId + 1;
@@ -740,11 +806,10 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
     def addEntity[T](components) = {
       resume {
         val entity = Entity(nextEntityId());      
-        val archId = do addArch(do getIds[T]());
+        val archId = do addEntity(do getIds[T](), entity);
         val componentIndex = do addComponentTuple(archId, components);
         val entityData = EntityData(archId, componentIndex);
         entityDatas.update(entity, entityData);
-        entityDataToEntity.update(entityData, entity);
         entity 
       }
     }
@@ -754,18 +819,13 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
           case Some(entityData) =>
             entityDatas.delete(entity);
             do removeSwapComponentTuple[T](entityData.archId, entityData.componentIndex) match {
-              case Swapped(swapped) =>
-                val swappedData = EntityData(entityData.archId, swapped);
-                val swappedEntity = entityDataToEntity.unsafeGet(swappedData);
+              case Some(swapped) =>
+                val swappedEntity = do getEntity(entityData.archId, swapped);
                 entityDatas.update(swappedEntity, entityData);
-                entityDataToEntity.update(entityData, swappedEntity);
-                entityDataToEntity.delete(swappedData);
-              case NoSwap() =>
-                entityDataToEntity.delete(entityData);
-              case Empty() =>
-                entityDataToEntity.delete(entityData);
-                do removeArch(entityData.archId);
+              case None() => ()
             }
+            do removeSwapEntity(entityData.archId, entityData.componentIndex);
+            ()
           case None() => println("Trying to remove nonexistent Entity with id " ++ entity.id.show() ++ "!");
         }
         ()
@@ -795,6 +855,8 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
 interface Query[T] {
   def foreachRO() { action: T => Unit }: Unit
   def foreachRW() { action: T => T }: Unit
+  def foreachEntityRO() { action: (Entity, T) => Unit }: Unit
+  def foreachEntityRW() { action: (Entity, T) => T }: Unit
 }
 
 def query[T]() { prog: => Unit / Query[T] }: Unit / { ArchManager, Components[T] } = {
@@ -824,6 +886,36 @@ def query[T]() { prog: => Unit / Query[T] }: Unit / { ArchManager, Components[T]
             with do iterTuplesRW[T](archId);
             loop {
               do emit(action(do read()));
+            }
+          } with stop {
+            ()
+          }
+        }
+      }
+    }
+    def foreachEntityRO() = {
+      resume { { action } =>
+        archIds.get().foreach() { archId =>
+          try {
+            with do iterEntitiesRO(archId);
+            with do iterTuplesRO[T](archId);
+            loop {
+              action(do read(), do read());
+            }
+          } with stop {
+            ()
+          }
+        }
+      }
+    }
+    def foreachEntityRW() = {
+      resume { { action } =>
+        archIds.get().foreach() { archId =>
+          try {
+            with do iterEntitiesRO(archId);
+            with do iterTuplesRW[T](archId);
+            loop {
+              do emit(action(do read(), do read()));
             }
           } with stop {
             ()
