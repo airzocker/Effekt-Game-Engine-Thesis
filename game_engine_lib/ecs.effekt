@@ -32,7 +32,7 @@ def componentManager() { prog: => Unit / ComponentManager } = {
 }
 
 interface Component[T] {
-  def getId(): Int
+  def getId(): Option[Int]
   def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
   def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
   def addComponent(archId: Int, value: T): Int
@@ -41,14 +41,14 @@ interface Component[T] {
   def setComponent(archId: Int, index: Int, value: T): Unit
 }
 
-def component[T]() { prog: => Unit / Component[T] }: Unit / ComponentManager = {
+def component[T]() { prog: => Unit / { Component[T], Component[Option[T]] } }: Unit / ComponentManager = {
   val componentId = do nextComponentId();
   val componentStore: Map[Int, ResizableArray[T]] = emptyMap();
   try {
     prog();
   } with Component[T] {
     def getId() = {
-      resume(componentId)
+      resume(Some(componentId))
     }
     def iterRO(archId) = {
       resume { { prog } =>
@@ -131,6 +131,102 @@ def component[T]() { prog: => Unit / Component[T] }: Unit / ComponentManager = {
         }
       )
     }
+  } with Component[Option[T]] {
+    def getId() = {
+      resume(None())
+    }
+    def iterRO(archId) = {
+      resume { { prog } =>
+        componentStore.get(archId) match {
+          case Some(components) =>
+            var index = 0;
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                if (index < components.size()) {
+                  val component = components.unsafeGet(index);
+                  index = index + 1;
+                  Some(component)
+                } else {
+                  do stop()
+                }
+              }
+            }
+          case None() =>
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                None()
+              }
+            }
+        }
+      }
+    }
+    def iterRW(archId) = {
+      resume { { prog } =>
+        componentStore.get(archId) match {
+          case Some(components) =>
+            var readIndex = 0;
+            var writeIndex = 0;
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                if (readIndex < components.size()) {
+                  val component = components.unsafeGet(readIndex);
+                  readIndex = readIndex + 1;
+                  Some(component)
+                } else {
+                  do stop()
+                }
+              }
+            } with emit[Option[T]] { value =>
+              if (writeIndex < components.size()) {
+                value match {
+                  case Some(value) => components.unsafeSet(writeIndex, value);
+                  case None() => ();
+                }
+                writeIndex = writeIndex + 1;
+              }
+              resume(())
+            }
+          case None() =>
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                None()
+              }
+            } with emit[Option[T]] { value =>
+              resume(())
+            }
+        }
+      }
+    }
+    def addComponent(archId, value) = {
+      panic("addComponent on Optional component makes no sense!");
+    }
+    def removeSwapComponent(archId, index) = {
+      panic("removeSwapComponent on Optional component makes no sense!");
+    }
+    def getComponent(archId, index) = {
+      resume(
+        componentStore.get(archId) match {
+          case Some(components) => Some(components.unsafeGet(index))
+          case None() => None()
+        }
+      )
+    }
+    def setComponent(archId, index, value) = {
+      resume(
+        (componentStore.get(archId), value) match {
+          case (Some(components), Some(value)) => components.unsafeSet(index, value);
+          case _ => ();
+        }
+      )
+    }
   }
 }
 
@@ -193,7 +289,10 @@ def zipComponents1[
   Component[A]
 } = {
   val componentIds = resizableArray(1);
-  componentIds.add(do getId[A]());
+  do getId[A]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
   try {
     prog();
   } with Components[(
@@ -269,8 +368,14 @@ def zipComponents2[
   Component[B]
 } = {
   val componentIds = resizableArray(2);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
+  do getId[A]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[B]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
   componentIds.bubbleSortInt();
   try {
     prog();
@@ -367,9 +472,18 @@ def zipComponents3[
   Component[C]
 } = {
   val componentIds = resizableArray(3);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
-  componentIds.add(do getId[C]());
+  do getId[A]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[B]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[C]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
   componentIds.bubbleSortInt();
   try {
     prog();
@@ -482,10 +596,22 @@ def zipComponents4[
   Component[D]
 } = {
   val componentIds = resizableArray(4);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
-  componentIds.add(do getId[C]());
-  componentIds.add(do getId[D]());
+  do getId[A]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[B]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[C]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
+  do getId[D]() match {
+    case Some(id) => componentIds.add(id);
+    case None() => 0;
+  }
   componentIds.bubbleSortInt();
   try {
     prog();
