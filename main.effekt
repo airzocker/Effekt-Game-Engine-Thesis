@@ -61,10 +61,11 @@ def testEcs() = {
   with createResource[Vector2](Vector2(1.1, 2.2));
   
   with zipComponents2[Int, Double]();
-  with addSystem[(Int, Double)]() {
+  with addSystem[(Int, Double), Unit, String]() {
     println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
     println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
-    do foreachEntityRO[(Int, Double)]() { (entity, values) =>
+    // TODO: How can I remove the duplicate type while having a single-run system body?
+    do foreachEntityRO[(Int, Double), Unit, String]() { (entity, values) =>
       println("Entity: " ++ entity.id.show());
       values match {
         case (int, double) => {
@@ -83,7 +84,6 @@ def testEcs() = {
   do addEntity[(Int, Double, String)]((4, 40.0, "First Triple Entity"));
   do addEntity[(Int, Double, String)]((5, 50.0, "Second Triple Entity"));
   
-  with zipComponents1[Int]();
   do addEntity[Int](6);
   do addEntity[Int](7);
 
