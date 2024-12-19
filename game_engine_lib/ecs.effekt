@@ -53,17 +53,9 @@ interface Resource[T] {
 }
 
 interface ArchManager {
-  // Maybe for bulk entity operations later
-  //def addArch(componentIds: ResizableArray[Int]): Int
-  //def removeArch(archId: Int): Unit
-
   def addUpdateQuery(componentIds: ResizableArray[Int], WithoutIds: ResizableArray[Int], archIds: Ref[ResizableArray[Int]]): Unit
   def updateQueries(): Unit
   def iterEntitiesRO(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
-
-  // Maybe for bulk entity operations later
-  //def addEntity(archId: Int, entity: Entity): Int
-
   // Returns archId:
   def addEntity(componentIds: ResizableArray[Int], entity: Entity): Int
   def removeSwapEntity(archId: Int, index: Int): Option[Int]
@@ -1035,7 +1027,7 @@ def systemEntityManager() { prog: => Unit / EntityManager }: Unit / EntityManage
 }
 
 def query[T, With, Without]()
-{ prog: => Unit / Query[T, With, Without] }: Unit / {
+{ prog: () { query: Query[T, With, Without] } => Unit }: Unit / {
   ArchManager, Components[T], Components[With], Components[Without]
 } = {
   val componentIds = dedupMergeInt(do getIds[T](), do getIds[With]());
@@ -1043,8 +1035,8 @@ def query[T, With, Without]()
   val archIds = ref(resizableArray(0));
   do addUpdateQuery(componentIds, withoutIds, archIds);
   try {
-    prog();
-  } with Query[T, With, Without] {
+    prog() { query };
+  } with query: Query[T, With, Without] {
     def foreachRO() = {
       resume { { action } =>
         archIds.get().foreach() { archId =>
@@ -1119,18 +1111,18 @@ def defaultSystem() { prog: => Unit / System } = {
 }
 
 def addSystem[T, With, Without]()
-{ body: => Unit / { Query[T, With, Without], EntityManager } }
+{ body: () { query: Query[T, With, Without] }=> Unit / EntityManager }
 { prog: => Unit / System }: Unit / {
   ArchManager, System, Components[T], Components[With], Components[Without]
 } = {
-  with query[T, With, Without]();
+  with def q = query[T, With, Without]();
   try {
     prog();
   } with System {
     def step() = {
       resume {
         do step();
-        body();
+        body() { q };
       }
     }
   }
