@@ -15,21 +15,12 @@ record EntityData(archId: Int, componentIndex: Int)
 
 record Arch(componentIds: ResizableArray[Int], entities: ResizableArray[Entity])
 
-interface ComponentManager {
-  def nextComponentId(): Int
+type Command[T] {
+  CreateEntity(entity: Entity, components: T);
+  DestroyEntity(entity: Entity);
 }
 
-def componentManager() { prog: => Unit / ComponentManager } = {
-  var lastComponentId = 0;
-  try {
-    prog();
-  } with ComponentManager {
-    def nextComponentId() = {
-      lastComponentId = lastComponentId + 1;
-      resume(lastComponentId)
-    }
-  }
-}
+effect nextComponentId(): Int
 
 interface Component[T] {
   def getId(): Int
@@ -41,6 +32,13 @@ interface Component[T] {
   def setComponent(archId: Int, index: Int, value: T): Unit
 }
 
+interface CommandBuffer[T] {
+  def createEntityBuffered(components: T): Entity
+  def destroyEntityBuffered(entity: Entity): Unit
+}
+
+effect writeCommandBuffer(): Unit
+
 interface Components[T] {
   def getIds(): ResizableArray[Int]
   def iterTuplesRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
@@ -49,62 +47,75 @@ interface Components[T] {
   def removeSwapComponentTuple(archId: Int, index: Int): Option[Int]
 }
 
-def component[T]() { prog: => Unit / { Component[T], Components[(T) ]} }: Unit / ComponentManager = {
+interface Resource[T] {
+  def getResource(): T
+  def setResource(value: T): Unit
+}
+
+interface ArchManager {
+  // Maybe for bulk entity operations later
+  //def addArch(componentIds: ResizableArray[Int]): Int
+  //def removeArch(archId: Int): Unit
+
+  def addUpdateQuery(componentIds: ResizableArray[Int], WithoutIds: ResizableArray[Int], archIds: Ref[ResizableArray[Int]]): Unit
+  def updateQueries(): Unit
+  def iterEntitiesRO(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
+
+  // Maybe for bulk entity operations later
+  //def addEntity(archId: Int, entity: Entity): Int
+
+  // Returns archId:
+  def addEntity(componentIds: ResizableArray[Int], entity: Entity): Int
+  def removeSwapEntity(archId: Int, index: Int): Option[Int]
+  def getEntity(archId: Int, index: Int): Entity
+}
+
+effect nextEntityId(): Int
+
+interface EntityManager {
+  def createEntity[T](components: T): Entity / { Components[T], CommandBuffer[T] }
+  def createEntityComponents[T](entity: Entity, components: T): Unit / Components[T]
+  def destroyEntity[T](entity: Entity): Unit / { Components[T], CommandBuffer[T] }
+  def getComponent[T](entity: Entity): T / Component[T]
+  def setComponent[T](entity: Entity, value: T): Unit / Component[T]
+}
+
+interface Query[T, With, Without] {
+  def foreachRO() { action: T => Unit }: Unit
+  def foreachRW() { action: T => T }: Unit
+  def foreachEntityRO() { action: (Entity, T) => Unit }: Unit
+  def foreachEntityRW() { action: (Entity, T) => T }: Unit
+}
+
+interface System {
+  def step(): Unit / EntityManager
+}
+
+interface World {
+  def stepWorld(): Unit / { System, writeCommandBuffer }
+  def runWorld(): Unit / { System, writeCommandBuffer }
+}
+
+def componentIdManager() { prog: => Unit / nextComponentId } = {
+  var lastComponentId = 0;
+  try {
+    prog();
+  } with nextComponentId {
+    lastComponentId = lastComponentId + 1;
+    resume(lastComponentId)
+  }
+}
+
+def component[T]() { prog: => Unit / {
+  Component[T], Components[(T)], CommandBuffer[T], writeCommandBuffer, nextEntityId
+} }: Unit / {
+  EntityManager, nextComponentId, writeCommandBuffer, nextEntityId
+} = {
   val componentId = do nextComponentId();
   val componentStore: Map[Int, ResizableArray[T]] = emptyMap();
-  val componentIds = resizableArray(1);
-  componentIds.add(componentId);
   try {
-    try {
-      prog();
-    } with Components[(T)] {
-      def getIds() = {
-        resume(componentIds)
-      }
-      def iterTuplesRO(archId) = {
-        resume { { prog } =>
-          with do iterRO[T](archId);
-          try {
-            prog();
-          } with read[(T)] {
-            resume {
-              (do read[T]())
-            }
-          }
-        }
-      }
-      def iterTuplesRW(archId) = {
-        resume { { prog } =>
-          with do iterRW[T](archId);
-          try {
-            prog();
-          } with read[(T)] {
-            resume {
-              (do read[T]())
-            }
-          } with emit[(T)] { value =>
-            value match {
-              case a =>
-                do emit(a);
-            }
-            resume(())
-          }
-        }
-      }
-      def addComponentTuple(archId, value) = {
-        resume(
-          value match {
-            case a =>
-              do addComponent(archId, a)
-          }
-        )
-      }
-      def removeSwapComponentTuple(archId, index) = {
-        resume(
-          do removeSwapComponent[T](archId, index)
-        )
-      }
-    }
+    with zipComponents1[(T)]();
+    prog();
   } with Component[T] {
     def getId() = {
       resume(componentId)
@@ -193,6 +204,60 @@ def component[T]() { prog: => Unit / { Component[T], Components[(T) ]} }: Unit /
   }
 }
 
+def writeCommand[T](command: Command[T]): Unit / { EntityManager, Components[T], CommandBuffer[T] } = {
+  command match {
+    case CreateEntity(entity, components) =>
+      do createEntityComponents[T](entity, components)
+      ()
+    case DestroyEntity(entity) =>
+      do destroyEntity[T](entity)
+      ()
+  }
+}
+
+def commandBuffer[T]() { prog: => Unit / {
+  CommandBuffer[T], writeCommandBuffer, nextEntityId
+} }: Unit / {
+  EntityManager, Components[T], writeCommandBuffer, nextEntityId
+} = {
+  var commandBuffer = resizableArray(4);
+  def writeBuffer() = {
+    if (commandBuffer.size() > 0) {
+      commandBuffer.foreach() { command =>
+        command.writeCommand[T]();
+      }
+      commandBuffer = resizableArray(4);
+    }
+  }
+  try {
+    try {
+      prog();
+    } with writeCommandBuffer {
+      do writeCommandBuffer();
+      writeBuffer();
+      resume(())
+    }
+  } with CommandBuffer[T] {
+    def createEntityBuffered(components) = {
+      val entity = Entity(do nextEntityId());
+      commandBuffer.add(CreateEntity(entity, components));
+      resume(entity)
+    }
+    def destroyEntityBuffered(entity) = {
+      commandBuffer.add(DestroyEntity(entity));
+      resume(())
+    }
+  }
+}
+
+def defaultWriteCommandBuffer() { prog: => Unit / writeCommandBuffer } = {
+  try {
+    prog();
+  } with writeCommandBuffer {
+    resume(())
+  }
+}
+
 def defaultComponents() { prog: => Unit / Components[Unit] } = {
   val componentIds = resizableArray(0);
   try {
@@ -236,13 +301,100 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
   }
 }
 
+def zipComponents1[
+  A
+]() { prog: => Unit / { Components[(
+  A
+)], CommandBuffer[(
+  A
+)], writeCommandBuffer } }: Unit / {
+  EntityManager,
+  writeCommandBuffer,
+  nextEntityId,
+  Component[A]
+} = {
+  val componentIds = resizableArray(1);
+  componentIds.add(do getId[A]());
+  try {
+    with commandBuffer[(
+      A
+    )]();
+    prog();
+  } with Components[(
+    A
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        try {
+          prog();
+        } with read[(
+          A
+        )] {
+          resume {
+            (
+              do read[A]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        try {
+          prog();
+        } with read[(
+          A
+        )] {
+          resume {
+            (
+              do read[A]()
+            )
+          }
+        } with emit[(
+          A
+        )] { value =>
+          value match {
+            case a =>
+              do emit(a);
+          }
+          resume(())
+        }
+      }
+    }
+    def addComponentTuple(archId, value) = {
+      resume(
+        value match {
+          case a =>
+            do addComponent(archId, a);
+        }
+      )
+    }
+    def removeSwapComponentTuple(archId, index) = {
+      resume(
+        do removeSwapComponent[A](archId, index)
+      )
+    }
+  }
+}
+
 def zipComponents2[
   A,
   B
-]() { prog: => Unit / Components[(
+]() { prog: => Unit / { Components[(
   A,
   B
-)] }: Unit / {
+)], CommandBuffer[(
+  A,
+  B
+)], writeCommandBuffer } }: Unit / {
+  EntityManager,
+  writeCommandBuffer,
+  nextEntityId,
   Component[A],
   Component[B]
 } = {
@@ -251,6 +403,10 @@ def zipComponents2[
   componentIds.add(do getId[B]());
   componentIds.bubbleSortInt();
   try {
+    with commandBuffer[(
+      A,
+      B
+    )]();
     prog();
   } with Components[(
     A,
@@ -335,11 +491,18 @@ def zipComponents3[
   A,
   B,
   C
-]() { prog: => Unit / Components[(
+]() { prog: => Unit / { Components[(
   A,
   B,
   C
-)] }: Unit / {
+)], CommandBuffer[(
+  A,
+  B,
+  C
+)], writeCommandBuffer } }: Unit / {
+  EntityManager,
+  writeCommandBuffer,
+  nextEntityId,
   Component[A],
   Component[B],
   Component[C]
@@ -350,6 +513,11 @@ def zipComponents3[
   componentIds.add(do getId[C]());
   componentIds.bubbleSortInt();
   try {
+    with commandBuffer[(
+      A,
+      B,
+      C
+    )]();
     prog();
   } with Components[(
     A,
@@ -448,12 +616,20 @@ def zipComponents4[
   B,
   C,
   D
-]() { prog: => Unit / Components[(
+]() { prog: => Unit / { Components[(
   A,
   B,
   C,
   D
-)] }: Unit / {
+)], CommandBuffer[(
+  A,
+  B,
+  C,
+  D
+)], writeCommandBuffer } }: Unit / {
+  EntityManager,
+  writeCommandBuffer,
+  nextEntityId,
   Component[A],
   Component[B],
   Component[C],
@@ -466,6 +642,12 @@ def zipComponents4[
   componentIds.add(do getId[D]());
   componentIds.bubbleSortInt();
   try {
+    with commandBuffer[(
+      A,
+      B,
+      C,
+      D
+    )]();
     prog();
   } with Components[(
     A,
@@ -572,11 +754,6 @@ def zipComponents4[
   }
 }
 
-interface Resource[T] {
-  def getResource(): T
-  def setResource(value: T): Unit
-}
-
 def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
   var resourceValue = value;
   try {
@@ -590,24 +767,6 @@ def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
       resume(())
     }
   }
-}
-
-interface ArchManager {
-  // Maybe for bulk entity operations later
-  //def addArch(componentIds: ResizableArray[Int]): Int
-  //def removeArch(archId: Int): Unit
-
-  def addUpdateQuery(componentIds: ResizableArray[Int], WithoutIds: ResizableArray[Int], archIds: Ref[ResizableArray[Int]]): Unit
-  def updateQueries(): Unit
-  def iterEntitiesRO(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
-
-  // Maybe for bulk entity operations later
-  //def addEntity(archId: Int, entity: Entity): Int
-
-  // Returns archId:
-  def addEntity(componentIds: ResizableArray[Int], entity: Entity): Int
-  def removeSwapEntity(archId: Int, index: Int): Option[Int]
-  def getEntity(archId: Int, index: Int): Entity
 }
 
 def archManager() { prog: => Unit / ArchManager } = {
@@ -773,31 +932,37 @@ def archManager() { prog: => Unit / ArchManager } = {
   }
 }
 
-interface EntityManager {
-  def addEntity[T](components: T): Entity / Components[T]
-  def destroyEntity[T](entity: Entity): Unit / Components[T]
-  def getComponent[T](entity: Entity): T / Component[T]
-  def setComponent[T](entity: Entity, value: T): Unit / Component[T]
+def entityIdManager() { prog: => Unit / nextEntityId } = {
+  var lastEntityId = 0;
+  try {
+    prog();
+  } with nextEntityId {
+    lastEntityId = lastEntityId + 1;
+    resume(lastEntityId)
+  }
 }
 
-def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
+def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nextEntityId } = {
   val entityDatas: Map[Entity, EntityData] = emptyMap();
-  var lastEntityId = 0;
-  def nextEntityId() = {
-    lastEntityId = lastEntityId + 1;
-    lastEntityId
-  }
   try {
     prog();
   } with EntityManager {
-    def addEntity[T](components) = {
+    def createEntity[T](components) = {
       resume {
-        val entity = Entity(nextEntityId());      
+        val entity = Entity(do nextEntityId());      
         val archId = do addEntity(do getIds[T](), entity);
         val componentIndex = do addComponentTuple(archId, components);
         val entityData = EntityData(archId, componentIndex);
         entityDatas.update(entity, entityData);
-        entity 
+        entity
+      }
+    }
+    def createEntityComponents[T](entity, components) = {
+      resume {
+        val archId = do addEntity(do getIds[T](), entity);
+        val componentIndex = do addComponentTuple(archId, components);
+        val entityData = EntityData(archId, componentIndex);
+        entityDatas.update(entity, entityData);
       }
     }
     def destroyEntity[T](entity) = {
@@ -822,7 +987,7 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
       resume {
         val (archId, componentIndex) = entityDatas.get(entity) match {
           case Some(EntityData(archId, componentIndex)) => (archId, componentIndex)
-          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "!")
+          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a CommandBuffer and not yet existent?")
         };
         do getComponent[T](archId, componentIndex)
       }
@@ -831,7 +996,7 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
       resume {
         val (archId, componentIndex) = entityDatas.get(entity) match {
           case Some(EntityData(archId, componentIndex)) => (archId, componentIndex)
-          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "!")
+          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a CommandBuffer and not yet existent?")
         };
         do setComponent[T](archId, componentIndex, value);
       }
@@ -839,11 +1004,34 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
   }
 }
 
-interface Query[T, With, Without] {
-  def foreachRO() { action: T => Unit }: Unit
-  def foreachRW() { action: T => T }: Unit
-  def foreachEntityRO() { action: (Entity, T) => Unit }: Unit
-  def foreachEntityRW() { action: (Entity, T) => T }: Unit
+def systemEntityManager() { prog: => Unit / EntityManager }: Unit / EntityManager = {
+  try {
+    prog();
+  } with EntityManager {
+    def createEntity[T](components) = {
+      resume {
+        do createEntityBuffered(components)
+      }
+    }
+    def createEntityComponents[T](entity, components) = {
+      panic("Cannot createEntityComponents inside systemEntityManager!");
+    }
+    def destroyEntity[T](entity) = {
+      resume {
+        do destroyEntityBuffered[T](entity);
+      }
+    }
+    def getComponent[T](entity) = {
+      resume {
+        do getComponent(entity)
+      }
+    }
+    def setComponent[T](entity, value) = {
+      resume {
+        do setComponent(entity, value);
+      }
+    }
+  }
 }
 
 def query[T, With, Without]()
@@ -918,22 +1106,20 @@ def query[T, With, Without]()
   }
 }
 
-interface System {
-  def step(): Unit
-}
-
 def defaultSystem() { prog: => Unit / System } = {
   try {
     prog();
   } with System {
     def step() = {
-      resume(())
+      resume {
+        ()
+      }
     }
   }
 }
 
 def addSystem[T, With, Without]()
-{ body: => Unit / Query[T, With, Without] }
+{ body: => Unit / { Query[T, With, Without], EntityManager } }
 { prog: => Unit / System }: Unit / {
   ArchManager, System, Components[T], Components[With], Components[Without]
 } = {
@@ -942,34 +1128,39 @@ def addSystem[T, With, Without]()
     prog();
   } with System {
     def step() = {
-      do step();
-      body();
-      resume(())
+      resume {
+        do step();
+        body();
+      }
     }
   }
 }
 
-interface World {
-  def stepWorld(): Unit / System
-  def runWorld(): Unit / System
-}
-
-def world() { prog: => Unit / { Components[Unit], ComponentManager, ArchManager, EntityManager, System, World } } = {
-  with defaultComponents();
-  with componentManager();
+def world() { prog: => Unit / {
+  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], writeCommandBuffer, System, World
+} } = {
+  with componentIdManager();
+  with entityIdManager();
   with archManager();
   with entityManager();
+  with defaultComponents();
+  with defaultWriteCommandBuffer();
   with defaultSystem();
-  def stepWorld() = {
+  def stepWorld() { writeCommandBuffer: => Unit } = {
     do updateQueries();
-    do step();
+    systemEntityManager() {
+      do step();
+    };
+    writeCommandBuffer();
   }
   try {
     prog();
   } with World {
     def stepWorld() = {
       resume {
-        stepWorld();
+        stepWorld() {
+          do writeCommandBuffer();
+        };
       }
     }
     def runWorld() = {
@@ -979,7 +1170,9 @@ def world() { prog: => Unit / { Components[Unit], ComponentManager, ArchManager,
             l.break();
           }
           await(promise(box { wait(0) } ));
-          stepWorld();
+          stepWorld() {
+            do writeCommandBuffer();
+          };
         }
       }
     }
