@@ -52,6 +52,7 @@ def updateTimeState(timeState: TimeState): TimeState = {
 }
 
 def testEcs() = {
+  /*
   with world();
   
   with component[Int]();
@@ -92,6 +93,9 @@ def testEcs() = {
   do stepWorld();
   println("========================");
   do stepWorld();
+  */
+
+  ()
 }
 
 def main() = {
