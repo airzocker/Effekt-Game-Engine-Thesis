@@ -1,6 +1,7 @@
 module ecs
 
 import resizable_array
+import list
 import mutable/map
 import io
 import io/time
@@ -89,7 +90,7 @@ def component[T]() { prog: => Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
   val componentId = do nextComponentId();
-  val componentStore: Map[Int, ResizableArray[T]] = emptyMap();
+  var componentStore: Map[Int, ResizableArray[T]] = emptyMap();
   try {
     with zipComponents1[(T)]();
     prog();
@@ -148,6 +149,7 @@ def component[T]() { prog: => Unit / {
         case None() =>
           val components = resizableArray(4);
           componentStore.update(archId, components);
+          println("problem " ++ componentStore.values().size().show());
           components
       }
       val index = components.size();
@@ -182,7 +184,7 @@ def component[T]() { prog: => Unit / {
 }
 
 def defaultComponents() { prog: => Unit / Components[Unit] } = {
-  val componentIds = resizableArray(0);
+  val componentIds = empty();
   try {
     prog();
   } with Components[Unit] {
@@ -233,8 +235,9 @@ def zipComponents1[
   nextEntityId,
   Component[A]
 } = {
-  val componentIds = resizableArray(1);
-  componentIds.add(do getId[A]());
+  val componentIds = [
+    do getId[A]()
+  ].sort();
   try {
     prog();
   } with Components[(
@@ -311,10 +314,10 @@ def zipComponents2[
   Component[A],
   Component[B]
 } = {
-  val componentIds = resizableArray(2);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
-  componentIds.bubbleSortInt();
+  val componentIds = [
+    do getId[A](),
+    do getId[B]()
+  ].sort();
   try {
     prog();
   } with Components[(
@@ -411,11 +414,11 @@ def zipComponents3[
   Component[B],
   Component[C]
 } = {
-  val componentIds = resizableArray(3);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
-  componentIds.add(do getId[C]());
-  componentIds.bubbleSortInt();
+  val componentIds = [
+    do getId[A](),
+    do getId[B](),
+    do getId[C]()
+  ].sort();
   try {
     prog();
   } with Components[(
@@ -528,12 +531,12 @@ def zipComponents4[
   Component[C],
   Component[D]
 } = {
-  val componentIds = resizableArray(4);
-  componentIds.add(do getId[A]());
-  componentIds.add(do getId[B]());
-  componentIds.add(do getId[C]());
-  componentIds.add(do getId[D]());
-  componentIds.bubbleSortInt();
+  val componentIds = [
+    do getId[A](),
+    do getId[B](),
+    do getId[C](),
+    do getId[D]()
+  ].sort();
   try {
     prog();
   } with Components[(
@@ -664,22 +667,25 @@ def archManager() { prog: => Unit / ArchManager } = {
   def addArch(componentIds: List[Int]) = {
     hasChanged = true;
     val arch = Arch(componentIds, resizableArray(4));
-    if (freeIndices.size() > 0) {
+    // TODO: Temporary check, while the ResizableArray bounds check is broken
+    if (freeIndices.size() < 1) {
+      archs.add(arch)
+    } else {
       try {
-        archs.unsafeSet(freeIndices.popRight(), arch);
+        val index = freeIndices.popRight();
+        archs.unsafeSet(index, arch);
+        index
       } with Exception[OutOfBounds] {
         def raise(_: OutOfBounds, _: String) = {
-          ()
+          archs.add(arch)
         }
       }
-    } else {
-      archs.add(arch);
     }
   }
   def removeArch(archId: Int) = {
     if (archId < archs.size()) {
       hasChanged = true;
-      archs.unsafeSet(archId, Arch(resizableArray(0), resizableArray(0)));
+      archs.unsafeSet(archId, Arch([], resizableArray(0)));
       freeIndices.add(archId);
       ()
     }
@@ -687,29 +693,40 @@ def archManager() { prog: => Unit / ArchManager } = {
   def updateFindArchs(componentIds: List[Int], withoutIds: List[Int], archIds: Ref[ResizableArray[Int]]) = {
     val newArchIds = resizableArray(4);
     archs.foreachIndex() { (archId, arch) { l } =>
-      var findIndex = 0;
-      var findWithoutIndex = 0;
-      var foundWithout = false;
-      arch.componentIds.foreach() { (componentId) { sl } =>
-        if (findIndex >= componentIds.size() && findWithoutIndex >= withoutIds.size()) {
-          sl.break();
+      var foundAll = false;
+      var withoutAll = true;
+      try {
+        with source[Int]() { each(componentIds) };
+        var checkComponent = do read[Int]();
+        arch.componentIds.foreach() { (componentId) { fl } =>
+          if (componentId > checkComponent) {
+            fl.break();
+          }
+          if (componentId == checkComponent) {
+            checkComponent = do read[Int]();
+          }
         }
-        while (findWithoutIndex < withoutIds.size() && withoutIds.unsafeGet(findWithoutIndex) < componentId) {
-          findWithoutIndex = findWithoutIndex + 1;
-        }
-        if (findWithoutIndex < withoutIds.size() && withoutIds.unsafeGet(findWithoutIndex) == componentId) {
-          foundWithout = true;
-          sl.break();
-        }
-        val searchId = componentIds.unsafeGet(findIndex);
-        if (componentId > searchId) {
-          l.continue();
-        }
-        if (componentId == searchId) {
-          findIndex = findIndex + 1;
+      } with stop {
+        foundAll = true;
+      }
+      if (foundAll) {
+        try {
+          with source[Int]() { each(withoutIds) };
+          var checkComponent = do read[Int]();
+          arch.componentIds.foreach() { (componentId) { fl } =>
+            while (componentId > checkComponent) {
+              checkComponent = do read[Int]();
+            }
+            if (componentId == checkComponent) {
+              withoutAll = false;
+              fl.break();
+            }
+          }
+        } with stop {
+          ()
         }
       }
-      if (findIndex == componentIds.size() && not(foundWithout)) {
+      if (foundAll && withoutAll) {
         newArchIds.add(archId);
         ()
       }
@@ -756,24 +773,30 @@ def archManager() { prog: => Unit / ArchManager } = {
       }
     }
     def addEntity(componentIds, entity) = {
-      var archId = -1;
+      var archId = None();
       archs.foreachIndex() { (id, arch) { l } =>
         if (arch.componentIds.size() != componentIds.size()) {
           l.continue();
         }
-        each(0, arch.componentIds.size()) { index =>
-          if (arch.componentIds.unsafeGet(index) != componentIds.unsafeGet(index)) {
-            l.continue();
+        try {
+          with source[Int]() { each(componentIds) };
+          arch.componentIds.foreach() { componentId =>
+            if (componentId != do read[Int]()) {
+              l.continue();
+            }
           }
+        } with stop {
+          ()
         }
-        archId = id;
+        archId = Some(id);
         l.break();
       }
-      if (archId < 0) {
-        archId = addArch(componentIds);
+      val id = archId match {
+        case None() => addArch(componentIds)
+        case Some(id) => id
       }
-      archs.unsafeGet(archId).entities.add(entity);
-      resume(archId)
+      archs.unsafeGet(id).entities.add(entity);
+      resume(id)
     }
     def removeSwapEntity(archId, index) = {
       val entities = archs.unsafeGet(archId).entities;
@@ -886,7 +909,7 @@ def query[T, With, Without]()
 { prog: () { query: Query[T, With, Without] } => Unit }: Unit / {
   ArchManager, Components[T], Components[With], Components[Without]
 } = {
-  val componentIds = dedupMergeInt(do getIds[T](), do getIds[With]());
+  val componentIds = dedupMergeInt(do getIds[T](), do getIds[With]()); 
   val withoutIds = do getIds[Without]();
   val archIds = ref(resizableArray(0));
   do addUpdateQuery(componentIds, withoutIds, archIds);

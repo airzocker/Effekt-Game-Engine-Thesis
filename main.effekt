@@ -64,8 +64,7 @@ def testEcs() = {
   with addSystem[(Int, Double), Unit, String]() { { query } =>
     println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
     println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
-    // TODO: How can I remove the duplicate type while having a single-run system body?
-    query.foreachEntityRO() { (entity, values) =>
+    query.foreachRO() { (entity, values) =>
       println("Entity: " ++ entity.id.show());
       values match {
         case (int, double) => {
@@ -73,7 +72,7 @@ def testEcs() = {
           println("Double: " ++ double.show());
         }
       }
-      do createEntity[(Int, Double)]((99999, 99999.99999));
+      //do createEntity[(Int, Double)]((99999, 99999.99999));
       ()
     }
   };
