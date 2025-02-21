@@ -45,7 +45,7 @@ interface ArchManager {
   def addUpdateQuery(componentIds: List[Int], WithoutIds: List[Int], archIds: Ref[ResizableArray[Int]]): Unit
   def updateQueries(): Unit
   def iterEntitiesRO(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
-  // Returns archId:
+  // Returns archId
   def addEntity(componentIds: List[Int], entity: Entity): Int
   def removeSwapEntity(archId: Int, index: Int): Option[Int]
   def getEntity(archId: Int, index: Int): Entity
@@ -58,6 +58,8 @@ interface EntityManager {
   def destroyEntity[T](entity: Entity): Unit / Components[T]
   def getComponent[T](entity: Entity): T / Component[T]
   def setComponent[T](entity: Entity, value: T): Unit / Component[T]
+  def hasEntity(entity: Entity): Bool
+  def setReservedEntity[T](entity: Entity, components: T): Unit / Components[T]
 }
 
 interface Query[T, With, Without] {
@@ -149,7 +151,6 @@ def component[T]() { prog: => Unit / {
         case None() =>
           val components = resizableArray(4);
           componentStore.update(archId, components);
-          println("problem " ++ componentStore.values().size().show());
           components
       }
       val index = components.size();
@@ -644,6 +645,319 @@ def zipComponents4[
   }
 }
 
+def zipComponents4[
+  A,
+  B,
+  C,
+  D,
+  E
+]() { prog: => Unit / { Components[(
+  A,
+  B,
+  C,
+  D,
+  E
+)] } }: Unit / {
+  EntityManager,
+  nextEntityId,
+  Component[A],
+  Component[B],
+  Component[C],
+  Component[D],
+  Component[E]
+} = {
+  val componentIds = [
+    do getId[A](),
+    do getId[B](),
+    do getId[C](),
+    do getId[D](),
+    do getId[E]()
+  ].sort();
+  try {
+    prog();
+  } with Components[(
+    A,
+    B,
+    C,
+    D,
+    E
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        with do iterRO[B](archId);
+        with do iterRO[C](archId);
+        with do iterRO[D](archId);
+        with do iterRO[E](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D,
+          E
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D](),
+              do read[E]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        with do iterRW[B](archId);
+        with do iterRW[C](archId);
+        with do iterRW[D](archId);
+        with do iterRW[E](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D,
+          E
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D](),
+              do read[E]()
+            )
+          }
+        } with emit[(
+          A,
+          B,
+          C,
+          D,
+          E
+        )] { value =>
+          value match {
+            case (
+              a,
+              b,
+              c,
+              d,
+              e
+            ) =>
+              do emit(a);
+              do emit(b);
+              do emit(c);
+              do emit(d);
+              do emit(e);
+          }
+          resume(())
+        }
+      }
+    }
+    def addComponentTuple(archId, value) = {
+      resume(
+        value match {
+          case (
+            a,
+            b,
+            c,
+            d,
+            e
+          ) =>
+            do addComponent(archId, a);
+            do addComponent(archId, b);
+            do addComponent(archId, c);
+            do addComponent(archId, d);
+            do addComponent(archId, e)
+        }
+      )
+    }
+    def removeSwapComponentTuple(archId, index) = {
+      do removeSwapComponent[A](archId, index);
+      do removeSwapComponent[B](archId, index);
+      do removeSwapComponent[C](archId, index);
+      do removeSwapComponent[D](archId, index);
+      resume(
+        do removeSwapComponent[E](archId, index)
+      )
+    }
+  }
+}
+
+def zipComponents4[
+  A,
+  B,
+  C,
+  D,
+  E,
+  F
+]() { prog: => Unit / { Components[(
+  A,
+  B,
+  C,
+  D,
+  E,
+  F
+)] } }: Unit / {
+  EntityManager,
+  nextEntityId,
+  Component[A],
+  Component[B],
+  Component[C],
+  Component[D],
+  Component[E],
+  Component[F]
+} = {
+  val componentIds = [
+    do getId[A](),
+    do getId[B](),
+    do getId[C](),
+    do getId[D](),
+    do getId[E](),
+    do getId[F]()
+  ].sort();
+  try {
+    prog();
+  } with Components[(
+    A,
+    B,
+    C,
+    D,
+    E,
+    F
+  )] {
+    def getIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[A](archId);
+        with do iterRO[B](archId);
+        with do iterRO[C](archId);
+        with do iterRO[D](archId);
+        with do iterRO[E](archId);
+        with do iterRO[F](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D,
+          E,
+          F
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D](),
+              do read[E](),
+              do read[F]()
+            )
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[A](archId);
+        with do iterRW[B](archId);
+        with do iterRW[C](archId);
+        with do iterRW[D](archId);
+        with do iterRW[E](archId);
+        with do iterRW[F](archId);
+        try {
+          prog();
+        } with read[(
+          A,
+          B,
+          C,
+          D,
+          E,
+          F
+        )] {
+          resume {
+            (
+              do read[A](),
+              do read[B](),
+              do read[C](),
+              do read[D](),
+              do read[E](),
+              do read[F]()
+            )
+          }
+        } with emit[(
+          A,
+          B,
+          C,
+          D,
+          E,
+          F
+        )] { value =>
+          value match {
+            case (
+              a,
+              b,
+              c,
+              d,
+              e,
+              f
+            ) =>
+              do emit(a);
+              do emit(b);
+              do emit(c);
+              do emit(d);
+              do emit(e);
+              do emit(f);
+          }
+          resume(())
+        }
+      }
+    }
+    def addComponentTuple(archId, value) = {
+      resume(
+        value match {
+          case (
+            a,
+            b,
+            c,
+            d,
+            e,
+            f
+          ) =>
+            do addComponent(archId, a);
+            do addComponent(archId, b);
+            do addComponent(archId, c);
+            do addComponent(archId, d);
+            do addComponent(archId, e);
+            do addComponent(archId, f)
+        }
+      )
+    }
+    def removeSwapComponentTuple(archId, index) = {
+      do removeSwapComponent[A](archId, index);
+      do removeSwapComponent[B](archId, index);
+      do removeSwapComponent[C](archId, index);
+      do removeSwapComponent[D](archId, index);
+      do removeSwapComponent[E](archId, index);
+      resume(
+        do removeSwapComponent[F](archId, index)
+      )
+    }
+  }
+}
+
 def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
   var resourceValue = value;
   try {
@@ -671,15 +985,12 @@ def archManager() { prog: => Unit / ArchManager } = {
     if (freeIndices.size() < 1) {
       archs.add(arch)
     } else {
-      try {
-        val index = freeIndices.popRight();
-        archs.unsafeSet(index, arch);
-        index
-      } with Exception[OutOfBounds] {
-        def raise(_: OutOfBounds, _: String) = {
-          archs.add(arch)
-        }
+      with on[OutOfBounds].default {
+        archs.add(arch)
       }
+      val index = freeIndices.popRight();
+      archs.unsafeSet(index, arch);
+      index
     }
   }
   def removeArch(archId: Int) = {
@@ -824,16 +1135,19 @@ def entityIdManager() { prog: => Unit / nextEntityId } = {
 
 def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nextEntityId } = {
   val entityDatas: Map[Entity, EntityData] = emptyMap();
+  def setReservedEntity[T](entity: Entity, components: T) = {
+    val archId = do addEntity(do getIds[T](), entity);
+    val componentIndex = do addComponentTuple(archId, components);
+    val entityData = EntityData(archId, componentIndex);
+    entityDatas.update(entity, entityData);
+  }
   try {
     prog();
   } with EntityManager {
     def createEntity[T](components) = {
       resume {
-        val entity = Entity(do nextEntityId());      
-        val archId = do addEntity(do getIds[T](), entity);
-        val componentIndex = do addComponentTuple(archId, components);
-        val entityData = EntityData(archId, componentIndex);
-        entityDatas.update(entity, entityData);
+        val entity = Entity(do nextEntityId());
+        setReservedEntity(entity, components);
         entity
       }
     }
@@ -873,37 +1187,84 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nex
         do setComponent[T](archId, componentIndex, value);
       }
     }
+    def hasEntity(entity) = {
+      resume(
+        entityDatas.get(entity).isDefined()
+      )
+    }
+    def setReservedEntity[T](entity, components) = {
+      resume {
+        setReservedEntity(entity, components);
+      }
+    }
   }
 }
 
-/*
-def systemEntityManager() { prog: => Unit / EntityManager }: Unit / EntityManager = {
+def systemEntityManager() { prog: => Unit / EntityManager }: Unit / { nextEntityId, EntityManager } = {
   try {
     prog();
   } with EntityManager {
     def createEntity[T](components) = {
-      resume {
-        do createEntityBuffered(components)
+      val entity = Entity(do nextEntityId());
+      resume {(
+        entity
+      )}
+      try {
+        resume {
+          do setReservedEntity(entity, components);
+          do stop();
+        }
+      } with stop {
+        ()
       }
     }
+    def setReservedEntity[T](entity, components) = {
+      panic("Cannot manually setReservedEntity!");
+    }
     def destroyEntity[T](entity) = {
-      resume {
-        do destroyEntityBuffered[T](entity);
+      resume {()}
+      try {
+        resume {
+          do destroyEntity[T](entity);
+          do stop();
+        }
+      } with stop {
+        ()
       }
     }
     def getComponent[T](entity) = {
       resume {
-        do getComponent(entity)
+        if (do hasEntity(entity)) {
+          do getComponent(entity)
+        } else {
+          panic("Cannot get component of to-be-created entity inside a system!");
+        }
       }
     }
     def setComponent[T](entity, value) = {
-      resume {
-        do setComponent(entity, value);
+      if (do hasEntity(entity)) {
+        resume {
+          do setComponent(entity, value);
+        }
+      } else {
+        resume {()}
+        try {
+          resume {
+            do setComponent(entity, value);
+            do stop();
+          }
+        } with stop {
+          ()
+        }
       }
+    }
+    def hasEntity(entity) = {
+      resume(
+        do hasEntity(entity)
+      )
     }
   }
 }
-*/
 
 def query[T, With, Without]()
 { prog: () { query: Query[T, With, Without] } => Unit }: Unit / {
@@ -962,7 +1323,7 @@ def defaultSystem() { prog: => Unit / System } = {
 }
 
 def addSystem[T, With, Without]()
-{ body: () { query: Query[T, With, Without] }=> Unit / EntityManager }
+{ body: () { query: Query[T, With, Without] } => Unit / EntityManager }
 { prog: => Unit / System }: Unit / {
   ArchManager, System, Components[T], Components[With], Components[Without]
 } = {
@@ -990,9 +1351,8 @@ def world() { prog: => Unit / {
   with defaultSystem();
   def stepWorld() = {
     do updateQueries();
-//    systemEntityManager() {
-      do step();
-//    };
+    with systemEntityManager();
+    do step();
   }
   try {
     prog();

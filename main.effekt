@@ -72,7 +72,7 @@ def testEcs() = {
           println("Double: " ++ double.show());
         }
       }
-      //do createEntity[(Int, Double)]((99999, 99999.99999));
+      do createEntity[(Int, Double)]((99999, 99999.99999));
       ()
     }
   };
