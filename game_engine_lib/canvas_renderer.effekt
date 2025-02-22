@@ -25,12 +25,15 @@ def canvasRenderer() { prog: => Unit }: Unit / {
   // TODO: Read/Apply WindowProperties
   with zipComponents2[Transform, Shape]();
   with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
-    //println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
-    // TODO: Set camera transform
+    jsResetTransform(context);
+    setTransform(context, (do getResource[Camera]()).transform);
+    jsSave(context);
     query.foreachRO() { (_, values) =>
       values match {
         case (transform, shape) => {
-          drawShape(context, transform, shape);
+          setTransform(context, transform);
+          drawShape(context, shape);
+          jsRestore(context);
         }
       }
       ()
@@ -39,19 +42,25 @@ def canvasRenderer() { prog: => Unit }: Unit / {
   prog();
 }
 
+def setTransform(context: CanvasRenderingContext2D, transform: Transform): Unit = {
+  jsTranslate(context, transform.position.x, transform.position.y);
+  jsScale(context, transform.scale.x, transform.scale.y);
+  jsRotate(context, transform.rotation);
+}
+
 // TODO
-def drawShape(context: CanvasRenderingContext2D, transform: Transform, shape: Shape): Unit = {
+def drawShape(context: CanvasRenderingContext2D, shape: Shape): Unit = {
   shape match {
     case Circle(color) =>
-      do fillStyle(color);
-      do fillCircle(pos, radius);
+      jsFillStyle(context, color.show());
+      jsFillCircle(context);
     case Rectangle(color) =>
-      do fillStyle(color);
-      do fillRect(pos, size);
+      jsFillStyle(context, color.show());
+      jsFillRect(context);
     case Text(color, text) =>
-      do initFont(fontSize);
-      do fillStyle(color);
-      do fillText(pos, text);
+      jsInitFont(context);
+      jsFillStyle(context, color.show());
+      jsFillText(context, text);
   }
 }
 
@@ -79,17 +88,35 @@ extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
 extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
   js "(${context}).fillStyle = ${color}"
 
-extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, width: Int, height: Int): Unit =
-  js "(${context}).fillRect(${x}, ${y}, ${width}, ${height})"
+extern io def jsFillRect(context: CanvasRenderingContext2D): Unit =
+  js "(${context}).fillRect(0, 0, 1, 1)"
 
-extern io def jsFillCircle(context: CanvasRenderingContext2D, x: Int, y: Int, radius: Int): Unit =
-  js "fillCircle(${context}, ${x}, ${y}, ${radius})"
+extern io def jsFillCircle(context: CanvasRenderingContext2D): Unit =
+  js "fillCircle(${context}, 0, 0, 1)"
 
-extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Int): Unit =
-  js "initFont(${context}, ${fontSize})"
+extern io def jsInitFont(context: CanvasRenderingContext2D): Unit =
+  js "initFont(${context}, 1)"
 
-extern io def jsFillText(context: CanvasRenderingContext2D, x: Int, y: Int, text: String): Unit =
-  js "(${context}).fillText(${text}, ${x}, ${y})"
+extern io def jsFillText(context: CanvasRenderingContext2D, text: String): Unit =
+  js "(${context}).fillText(${text}, 0, 0)"
+
+extern io def jsTranslate(context: CanvasRenderingContext2D, x: Double, y: Double): Unit =
+  js "(${context}).translate(${x}, ${y})"
+
+extern io def jsRotate(context: CanvasRenderingContext2D, rotation: Double): Unit =
+  js "(${context}).rotate(${rotation})"
+
+extern io def jsScale(context: CanvasRenderingContext2D, x: Double, y: Double): Unit =
+  js "(${context}).scale(${x}, ${y})"
+
+extern io def jsResetTransform(context: CanvasRenderingContext2D): Unit =
+  js "(${context}).resetTransform()"
+
+extern io def jsSave(context: CanvasRenderingContext2D): Unit =
+  js "(${context}).save()"
+
+extern io def jsRestore(context: CanvasRenderingContext2D): Unit =
+  js "(${context}).restore()"
 
 extern js """
 

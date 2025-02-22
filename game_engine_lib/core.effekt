@@ -99,3 +99,7 @@ def setG(c: Color, i: Int): Color = {
 def setB(c: Color, i: Int): Color = {
   Color(c.r, c.g, i)
 }
+
+def show(c: Color): String = {
+  "rgb(" ++ show(c.r) ++ " " ++ show(c.g) ++ " " ++ show(c.b) ++ ")"
+}

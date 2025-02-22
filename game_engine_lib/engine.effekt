@@ -8,7 +8,7 @@ import game_engine_lib/ecs
 
 type Prefab = Unit
 
-record Transform(position: Vector2, rotation: Double, Scale: Vector2)
+record Transform(position: Vector2, rotation: Double, scale: Vector2)
 
 interface World {
   def stepWorld(): Unit / System
