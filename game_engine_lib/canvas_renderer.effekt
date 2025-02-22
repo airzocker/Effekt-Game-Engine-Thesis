@@ -2,68 +2,61 @@ module renderer
 
 import game_engine_lib/math
 import game_engine_lib/core
+import game_engine_lib/engine
+import game_engine_lib/ecs
 
 extern type CanvasElement
 extern type CanvasRenderingContext2D
 
-interface Context {
-  def fillStyle(color: Color): Unit
-  def fillRect(pos: Vector2Int, size: Vector2Int): Unit
-  def fillCircle(pos: Vector2Int, radius: Int): Unit
-  def fillText(pos: Vector2Int, text: String): Unit
-  def initFont(fontSize: Int): Unit
-}
-
-def defaultContext[R] { prog: () => R / Context }: R = {
-  val canvas = getCanvas()
-  val ctx = canvas.getContext;
-
-  with handleContext(ctx);
-
-  prog()
-}
-
-def handleContext[R](ctx: CanvasRenderingContext2D) { prog: () => R / Context }: R = {
-  try { prog() }
-  with Context {
-    def fillStyle(color) = { jsFillStyle(ctx, "rgb(" ++ show(color.r) ++ " " ++ show(color.g) ++ " " ++ show(color.b) ++ ")"); resume(()) }
-    def fillRect(pos, size) = { jsFillRect(ctx, pos.x, pos.y, size.x, size.y); resume(()) }
-    def fillCircle(pos, radius) = { jsFillCircle(ctx, pos.x, pos.y, radius); resume(()) }
-    def fillText(pos, text) = { jsFillText(ctx, pos.x, pos.y, text); resume(()) }
-    def initFont(fontSize) = { jsInitFont(ctx, fontSize); resume(()) }
-  }
-}
-
 type Shape {
-  Circle(pos: Vector2Int, radius: Int, color: Color);
-  Rectangle(pos: Vector2Int, size: Vector2Int, color: Color);
-  Text(pos: Vector2Int, fontSize: Int, color: Color, text: String);
+  Circle(color: Color);
+  Rectangle(color: Color);
+  Text(color: Color, text: String);
 }
 
-def drawShape(shape: Shape): Unit / Context = {
+record WindowProperties(size: Vector2Int)
+record Camera(transform: Transform)
+
+def canvasRenderer() { prog: => Unit }: Unit / {
+  Resource[Camera], Component[Transform], Component[Shape], Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
+} = {
+  val canvas = getCanvas()
+  val context = canvas.getContext;
+  // TODO: Read/Apply WindowProperties
+  with zipComponents2[Transform, Shape]();
+  with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
+    //println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
+    // TODO: Set camera transform
+    query.foreachRO() { (_, values) =>
+      values match {
+        case (transform, shape) => {
+          drawShape(context, transform, shape);
+        }
+      }
+      ()
+    }
+  };
+  prog();
+}
+
+// TODO
+def drawShape(context: CanvasRenderingContext2D, transform: Transform, shape: Shape): Unit = {
   shape match {
-    case Circle(pos, radius, color) =>
+    case Circle(color) =>
       do fillStyle(color);
       do fillCircle(pos, radius);
-    case Rectangle(pos, size, color) =>
+    case Rectangle(color) =>
       do fillStyle(color);
       do fillRect(pos, size);
-    case Text(pos, fontSize, color, text) =>
+    case Text(color, text) =>
       do initFont(fontSize);
       do fillStyle(color);
       do fillText(pos, text);
   }
 }
 
-def drawShapes(shapes: List[Shape]) = {
-  shapes.foreach { shape =>
-    drawShape(shape)
-  }
-}
-
-def clearCanvas() = {
-  drawShape(Rectangle(Vector2Int(0, 0), Vector2Int(getCanvasWidth(), getCanvasHeight()), Color(0, 0, 0)));
-}
+extern io def clearCanvas(context: CanvasRenderingContext2D): Unit =
+  js "clearCanvas(${context})"
 
 extern io def resizeCanvas(): Unit =
   js "resizeCanvas()"
@@ -135,6 +128,11 @@ function getCanvasWidth() {
 
 function getCanvasHeight() {
   return canvasHeight;
+}
+
+function clearCanvas(context) {
+  context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+  context.beginPath();
 }
 
 """

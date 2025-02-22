@@ -3,11 +3,60 @@ module engine
 import io
 import io/time
 
-def runGameLoop { prog: => Unit } = {
-  while (not(isInputEscape())) {
-    // Loop needs wait() to give control flow back, otherwise JavaScript events will never be detected
-    await(promise(box { wait(0) } ));
+import game_engine_lib/math
+import game_engine_lib/ecs
+
+type Prefab = Unit
+
+record Transform(position: Vector2, rotation: Double, Scale: Vector2)
+
+interface World {
+  def stepWorld(): Unit / System
+  def runWorld(): Unit / System
+}
+
+def limitRotation(rotation: Double): Double = {
+  val rotations = floor(rotation / (2.0 * PI));
+  rotation - rotation * (2.0 * PI)
+}
+
+def uniformScale(scale: Double): Vector2 = {
+  Vector2(scale, scale)
+}
+
+def world() { prog: => Unit / {
+  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], System, World
+} } = {
+  with componentIdManager();
+  with entityIdManager();
+  with archManager();
+  with entityManager();
+  with defaultComponents();
+  with defaultSystem();
+  def stepWorld() = {
+    do updateQueries();
+    with systemEntityManager();
+    do step();
+  }
+  try {
     prog();
+  } with World {
+    def stepWorld() = {
+      resume {
+        stepWorld();
+      }
+    }
+    def runWorld() = {
+      resume {
+        loop { { l } =>
+          if (isInputEscape()) {
+            l.break();
+          }
+          await(promise(box { wait(0) } ));
+          stepWorld();
+        }
+      }
+    }
   }
 }
 

@@ -8,7 +8,6 @@ import io/time
 import stream
 
 import game_engine_lib/core
-import game_engine_lib/engine
 
 record Entity(id: Int)
 
@@ -69,11 +68,6 @@ interface Query[T, With, Without] {
 
 interface System {
   def step(): Unit / EntityManager
-}
-
-interface World {
-  def stepWorld(): Unit / System
-  def runWorld(): Unit / System
 }
 
 def componentIdManager() { prog: => Unit / nextComponentId } = {
@@ -645,7 +639,7 @@ def zipComponents4[
   }
 }
 
-def zipComponents4[
+def zipComponents5[
   A,
   B,
   C,
@@ -793,7 +787,7 @@ def zipComponents4[
   }
 }
 
-def zipComponents4[
+def zipComponents6[
   A,
   B,
   C,
@@ -1002,6 +996,9 @@ def archManager() { prog: => Unit / ArchManager } = {
     }
   }
   def updateFindArchs(componentIds: List[Int], withoutIds: List[Int], archIds: Ref[ResizableArray[Int]]) = {
+    if (componentIds.size() == 0) {
+      return ()
+    }
     val newArchIds = resizableArray(4);
     archs.foreachIndex() { (archId, arch) { l } =>
       var foundAll = false;
@@ -1188,9 +1185,7 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nex
       }
     }
     def hasEntity(entity) = {
-      resume(
-        entityDatas.get(entity).isDefined()
-      )
+      resume(entityDatas.get(entity).isDefined())
     }
     def setReservedEntity[T](entity, components) = {
       resume {
@@ -1206,9 +1201,9 @@ def systemEntityManager() { prog: => Unit / EntityManager }: Unit / { nextEntity
   } with EntityManager {
     def createEntity[T](components) = {
       val entity = Entity(do nextEntityId());
-      resume {(
-        entity
-      )}
+      resume {
+        (entity)
+      }
       try {
         resume {
           do setReservedEntity(entity, components);
@@ -1222,7 +1217,9 @@ def systemEntityManager() { prog: => Unit / EntityManager }: Unit / { nextEntity
       panic("Cannot manually setReservedEntity!");
     }
     def destroyEntity[T](entity) = {
-      resume {()}
+      resume {
+        ()
+      }
       try {
         resume {
           do destroyEntity[T](entity);
@@ -1247,7 +1244,9 @@ def systemEntityManager() { prog: => Unit / EntityManager }: Unit / { nextEntity
           do setComponent(entity, value);
         }
       } else {
-        resume {()}
+        resume {
+          ()
+        }
         try {
           resume {
             do setComponent(entity, value);
@@ -1335,42 +1334,6 @@ def addSystem[T, With, Without]()
       resume {
         do step();
         body() { q };
-      }
-    }
-  }
-}
-
-def world() { prog: => Unit / {
-  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], System, World
-} } = {
-  with componentIdManager();
-  with entityIdManager();
-  with archManager();
-  with entityManager();
-  with defaultComponents();
-  with defaultSystem();
-  def stepWorld() = {
-    do updateQueries();
-    with systemEntityManager();
-    do step();
-  }
-  try {
-    prog();
-  } with World {
-    def stepWorld() = {
-      resume {
-        stepWorld();
-      }
-    }
-    def runWorld() = {
-      resume {
-        loop { { l } =>
-          if (isInputEscape()) {
-            l.break();
-          }
-          await(promise(box { wait(0) } ));
-          stepWorld();
-        }
       }
     }
   }

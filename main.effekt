@@ -7,8 +7,9 @@ import game_engine_lib/math
 import game_engine_lib/core
 import game_engine_lib/ecs
 import game_engine_lib/engine
-import game_engine_lib/renderer
+import game_engine_lib/canvas_renderer
 
+/*
 type Side {
   Left();
   Right();
@@ -50,16 +51,17 @@ def updateTimeState(timeState: TimeState): TimeState = {
     val newElapsedTime = getTime() - timeState.startTime;
     TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
 }
+*/
 
 def testEcs() = {
   with world();
-  
-  with component[Int]();
-  with component[Double]();
-  with component[String]();
-  
-  with createResource[Vector2](Vector2(1.1, 2.2));
-  
+
+  with component[Transform]();
+  with component[Shape]();
+
+  //with createResource[Vector2](Vector2(1.1, 2.2));
+
+  /*
   with zipComponents2[Int, Double]();
   with addSystem[(Int, Double), Unit, String]() { { query } =>
     println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
@@ -80,13 +82,14 @@ def testEcs() = {
   do createEntity[(Int, Double)]((1, 10.1));
   do createEntity[(Int, Double)]((2, 20.2));
   do createEntity[(Int, Double)]((3, 30.3));
-  
+
   with zipComponents3[Int, Double, String]();
   do createEntity[(Int, Double, String)]((4, 40.4, "First Triple Entity"));
   do createEntity[(Int, Double, String)]((5, 50.5, "Second Triple Entity"));
-  
+
   do createEntity[Int](6);
   do createEntity[Int](7);
+  */
 
   do stepWorld();
   println("========================");
@@ -99,8 +102,9 @@ def main() = {
   resizeCanvas();
   registerEvents();
   
-  with defaultContext;
+  //with defaultContext;
   
+  /*
   val playAreaSize = Vector2Int(getCanvasHeight(), getCanvasHeight());
 
   val paddleSpeed = 0.8 * playAreaSize.y.toDouble();
@@ -124,7 +128,7 @@ def main() = {
   var scores = Scores(0, 0);
   var timeState = TimeState(getTime(), 0.0, 0.0);
   
-  runGameLoop {
+  //runGameLoop {
     
     timeState = timeState.updateTimeState();
 
@@ -200,5 +204,7 @@ def main() = {
     ];
     drawShapes(shapes);
 
-  }
+  //}
+  */
+  ()
 }
