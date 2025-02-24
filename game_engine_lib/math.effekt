@@ -2,6 +2,14 @@ module math
 
 record Vector2(x: Double, y: Double)
 
+def show(v: Vector2): String = {
+  "(" ++ v.x.show() ++ ", " ++ v.y.show() ++ ")"
+}
+
+def zero(): Vector2 = {
+  Vector2(0.0, 0.0)
+}
+
 def setX(v: Vector2, d: Double): Vector2 = {
   Vector2(d, v.y)
 }
@@ -65,6 +73,14 @@ def floor(v: Vector2): Vector2 = {
 }
 
 record Vector2Int(x: Int, y: Int)
+
+def show(v: Vector2Int): String = {
+  "(" ++ v.x.show() ++ ", " ++ v.y.show() ++ ")"
+}
+
+def zero(): Vector2Int = {
+  Vector2Int(0, 0)
+}
 
 def setX(v: Vector2Int, d: Int): Vector2Int = {
   Vector2Int(d, v.y)

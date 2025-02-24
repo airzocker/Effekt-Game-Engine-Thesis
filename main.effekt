@@ -46,61 +46,38 @@ def scoreSide(scores: Scores, side: Side): Scores = {
     case Right() => Scores(scores.left, scores.right + 1)
   }
 }
-
-def updateTimeState(timeState: TimeState): TimeState = {
-    val newElapsedTime = getTime() - timeState.startTime;
-    TimeState(timeState.startTime, newElapsedTime, newElapsedTime - timeState.elapsedTime)
-}
 */
 
-def testEcs() = {
+def main() = {
   with world();
 
   with component[Transform]();
   with component[Shape]();
 
-  //with createResource[Vector2](Vector2(1.1, 2.2));
-
-  /*
-  with zipComponents2[Int, Double]();
-  with addSystem[(Int, Double), Unit, String]() { { query } =>
-    println("Resource vec x: " ++ (do getResource[Vector2]()).x.show());
-    println("Resource vec y: " ++ (do getResource[Vector2]()).y.show());
-    query.foreachRO() { (entity, values) =>
-      println("Entity: " ++ entity.id.show());
+  with canvasRenderer();
+  
+  with addSystem[(Transform), (Shape), Prefab]() { { query } =>
+    query.foreachRW() { (entity, values) =>
+      val deltaTime = (do getResource[Time]()).deltaTime;
       values match {
-        case (int, double) => {
-          println("Int: " ++ int.show());
-          println("Double: " ++ double.show());
+        case transform => {
+          Transform(
+            transform.position,
+            limitRotation(transform.rotation + deltaTime * PI * 2.0 * 0.2),
+            transform.scale
+          )
         }
       }
-      do createEntity[(Int, Double)]((99999, 99999.99999));
-      ()
     }
   };
 
-  do createEntity[(Int, Double)]((1, 10.1));
-  do createEntity[(Int, Double)]((2, 20.2));
-  do createEntity[(Int, Double)]((3, 30.3));
+  do createEntity[(Transform, Shape)]((Transform(
+    zero(),
+    0.0,
+    uniformScale(2.0)
+  ), Rect(Color(255, 0, 255))));
 
-  with zipComponents3[Int, Double, String]();
-  do createEntity[(Int, Double, String)]((4, 40.4, "First Triple Entity"));
-  do createEntity[(Int, Double, String)]((5, 50.5, "Second Triple Entity"));
-
-  do createEntity[Int](6);
-  do createEntity[Int](7);
-  */
-
-  do stepWorld();
-  println("========================");
-  do stepWorld();
-}
-
-def main() = {
-  testEcs();
-
-  resizeCanvas();
-  registerEvents();
+  do runWorld();
   
   //with defaultContext;
   

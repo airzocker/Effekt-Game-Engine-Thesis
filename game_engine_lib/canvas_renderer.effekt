@@ -5,32 +5,41 @@ import game_engine_lib/core
 import game_engine_lib/engine
 import game_engine_lib/ecs
 
-extern type CanvasElement
 extern type CanvasRenderingContext2D
 
 type Shape {
   Circle(color: Color);
-  Rectangle(color: Color);
+  Rect(color: Color);
   Text(color: Color, text: String);
 }
 
 record WindowProperties(size: Vector2Int)
-record Camera(transform: Transform)
+record Camera(transform: CameraTransform)
 
-def canvasRenderer() { prog: => Unit }: Unit / {
-  Resource[Camera], Component[Transform], Component[Shape], Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
+def canvasRenderer() { prog: => Unit / {
+  Resource[Camera], Resource[WindowProperties], Components[(Transform, Shape)], System
+} }: Unit / {
+  Component[Transform], Component[Shape], Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
 } = {
-  val canvas = getCanvas()
-  val context = canvas.getContext;
-  // TODO: Read/Apply WindowProperties
+  val context = jsGetContext();
+  jsInitCanvas();
+  with createResource[WindowProperties](getWindowProperties());
+  with createResource[Camera](Camera(CameraTransform(
+    zero(),
+    0.0,
+    10.0
+  )));
   with zipComponents2[Transform, Shape]();
   with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
+    do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
-    setTransform(context, (do getResource[Camera]()).transform);
-    jsSave(context);
-    query.foreachRO() { (_, values) =>
+    jsClearCanvas(context);
+    jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
+    setCameraTransform(context, (do getResource[Camera]()).transform);
+    query.foreachRO() { (entity, values) =>
       values match {
         case (transform, shape) => {
+          jsSave(context);
           setTransform(context, transform);
           drawShape(context, shape);
           jsRestore(context);
@@ -42,19 +51,29 @@ def canvasRenderer() { prog: => Unit }: Unit / {
   prog();
 }
 
+def getWindowProperties(): WindowProperties = {
+  WindowProperties(Vector2Int(jsGetCanvasWidth(), jsGetCanvasHeight()))
+}
+
 def setTransform(context: CanvasRenderingContext2D, transform: Transform): Unit = {
-  jsTranslate(context, transform.position.x, transform.position.y);
+  jsTranslate(context, transform.position.x, 0.0 - transform.position.y);
   jsScale(context, transform.scale.x, transform.scale.y);
   jsRotate(context, transform.rotation);
 }
 
-// TODO
+def setCameraTransform(context: CanvasRenderingContext2D, transform: CameraTransform): Unit = {
+  jsRotate(context, 0.0 - transform.rotation);
+  val screenScale = jsGetCanvasHeight().toDouble();
+  jsScale(context, screenScale / transform.height, screenScale / transform.height);
+  jsTranslate(context, 0.0 - transform.position.x, transform.position.y);
+}
+
 def drawShape(context: CanvasRenderingContext2D, shape: Shape): Unit = {
   shape match {
     case Circle(color) =>
       jsFillStyle(context, color.show());
       jsFillCircle(context);
-    case Rectangle(color) =>
+    case Rect(color) =>
       jsFillStyle(context, color.show());
       jsFillRect(context);
     case Text(color, text) =>
@@ -64,35 +83,29 @@ def drawShape(context: CanvasRenderingContext2D, shape: Shape): Unit = {
   }
 }
 
-extern io def clearCanvas(context: CanvasRenderingContext2D): Unit =
+extern io def jsInitCanvas(): Unit =
+  js "initCanvas()"
+
+extern pure def jsGetCanvasWidth(): Int =
+  js "canvas.width"
+
+extern pure def jsGetCanvasHeight(): Int =
+  js "canvas.height"
+
+extern pure def jsGetContext(): CanvasRenderingContext2D =
+  js "canvas.getContext('2d')"
+
+extern io def jsClearCanvas(context: CanvasRenderingContext2D): Unit =
   js "clearCanvas(${context})"
-
-extern io def resizeCanvas(): Unit =
-  js "resizeCanvas()"
-
-extern io def registerEvents(): Unit =
-  js "registerEvents()"
-
-extern pure def getCanvasWidth(): Int =
-  js "getCanvasWidth()"
-
-extern pure def getCanvasHeight(): Int =
-  js "getCanvasHeight()"
-
-extern pure def getCanvas(): CanvasElement =
-  js "getCanvas()"
-
-extern pure def getContext(canvas: CanvasElement): CanvasRenderingContext2D =
-  js "(${canvas}).getContext('2d')"
 
 extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
   js "(${context}).fillStyle = ${color}"
 
 extern io def jsFillRect(context: CanvasRenderingContext2D): Unit =
-  js "(${context}).fillRect(0, 0, 1, 1)"
+  js "(${context}).fillRect(-0.5, -0.5, 1, 1)"
 
 extern io def jsFillCircle(context: CanvasRenderingContext2D): Unit =
-  js "fillCircle(${context}, 0, 0, 1)"
+  js "fillCircle(${context})"
 
 extern io def jsInitFont(context: CanvasRenderingContext2D): Unit =
   js "initFont(${context}, 1)"
@@ -119,47 +132,33 @@ extern io def jsRestore(context: CanvasRenderingContext2D): Unit =
   js "(${context}).restore()"
 
 extern js """
-
 const canvas = document.getElementById('myCanvas');
-let canvasWidth = 0;
-let canvasHeight = 0;
 
-function getCanvas() {
-  return canvas;
+function initCanvas() {
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 }
 
-function initFont(ctx, fontSize) {
-  ctx.font = 'bold ' + fontSize + 'px sans';
-  ctx.textAlign = 'center';
+function initFont(context, fontSize) {
+  context.font = 'bold ' + fontSize + 'px sans';
+  context.textAlign = 'center';
 }
 
-function fillCircle(context, x, y, radius) {
+function fillCircle(context) {
   context.beginPath();
-  context.arc(x, y, radius, 0, 2 * Math.PI);
+  context.arc(0, 0, 0.5, 0, 2 * Math.PI);
   context.fill();
 }
 
 function resizeCanvas() {
-  // This might be useful as initialization if live resizing is needed:
-  //window.addEventListener('resize', resizeCanvas);
-
-  canvasWidth = window.innerWidth;
-  canvasHeight = window.innerHeight;
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
-}
-
-function getCanvasWidth() {
-  return canvasWidth;
-}
-
-function getCanvasHeight() {
-  return canvasHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
 
 function clearCanvas(context) {
-  context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-  context.beginPath();
+  context.fillStyle = "rgb(0 0 0)";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  //context.clearRect(0, 0, canvas.width, canvas.height);
+  //context.beginPath();
 }
-
 """

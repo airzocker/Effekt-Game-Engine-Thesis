@@ -192,7 +192,7 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
           prog();
         } with read[Unit] {
           resume {
-            ()
+            do stop();
           }
         }
       }
@@ -203,7 +203,7 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
           prog();
         } with read[Unit] {
           resume {
-            ()
+            do stop();
           }
         } with emit[Unit] { value =>
           resume(())
@@ -1131,7 +1131,7 @@ def entityIdManager() { prog: => Unit / nextEntityId } = {
 }
 
 def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nextEntityId } = {
-  val entityDatas: Map[Entity, EntityData] = emptyMap();
+  var entityDatas: Map[Entity, EntityData] = emptyMap();
   def setReservedEntity[T](entity: Entity, components: T) = {
     val archId = do addEntity(do getIds[T](), entity);
     val componentIndex = do addComponentTuple(archId, components);
@@ -1170,7 +1170,7 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nex
       resume {
         val (archId, componentIndex) = entityDatas.get(entity) match {
           case Some(EntityData(archId, componentIndex)) => (archId, componentIndex)
-          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a CommandBuffer and not yet existent?")
+          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a deferred modification and not yet existent?")
         };
         do getComponent[T](archId, componentIndex)
       }
@@ -1179,7 +1179,7 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nex
       resume {
         val (archId, componentIndex) = entityDatas.get(entity) match {
           case Some(EntityData(archId, componentIndex)) => (archId, componentIndex)
-          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a CommandBuffer and not yet existent?")
+          case None() => panic("Trying to get component of nonexistent Entity with id " ++ entity.id.show() ++ "! Maybe it's in a deferred modification and not yet existent?")
         };
         do setComponent[T](archId, componentIndex, value);
       }

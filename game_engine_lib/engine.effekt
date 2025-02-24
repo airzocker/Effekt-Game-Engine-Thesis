@@ -9,6 +9,8 @@ import game_engine_lib/ecs
 type Prefab = Unit
 
 record Transform(position: Vector2, rotation: Double, scale: Vector2)
+record CameraTransform(position: Vector2, rotation: Double, height: Double)
+record Time(deltaTime: Double, gameTime: Double, frame: Int)
 
 interface World {
   def stepWorld(): Unit / System
@@ -16,8 +18,14 @@ interface World {
 }
 
 def limitRotation(rotation: Double): Double = {
-  val rotations = floor(rotation / (2.0 * PI));
-  rotation - rotation * (2.0 * PI)
+  val twoPi = 2.0 * PI;
+  val rotations = floor(rotation / twoPi);
+  val limited = rotation - rotations.toDouble() * twoPi;
+  if (limited > PI) {
+    limited - twoPi
+  } else {
+    limited
+  }
 }
 
 def uniformScale(scale: Double): Vector2 = {
@@ -25,7 +33,7 @@ def uniformScale(scale: Double): Vector2 = {
 }
 
 def world() { prog: => Unit / {
-  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], System, World
+  Resource[Time], nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], System, World
 } } = {
   with componentIdManager();
   with entityIdManager();
@@ -35,10 +43,13 @@ def world() { prog: => Unit / {
   with defaultSystem();
   def stepWorld() = {
     do updateQueries();
-    with systemEntityManager();
-    do step();
+    systemEntityManager() {
+      do step();
+    };
   }
   try {
+    with timeSystem();
+    initInput();
     prog();
   } with World {
     def stepWorld() = {
@@ -49,7 +60,7 @@ def world() { prog: => Unit / {
     def runWorld() = {
       resume {
         loop { { l } =>
-          if (isInputEscape()) {
+          if (jsIsInputEscape()) {
             l.break();
           }
           await(promise(box { wait(0) } ));
@@ -60,22 +71,46 @@ def world() { prog: => Unit / {
   }
 }
 
-extern pure def isInput1Up(): Bool =
+def timeSystem() { prog: => Unit / {
+  Resource[Time], System
+} }: Unit / {
+  Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
+} = {
+  with createResource[Time](updateTime(Time(0.0, 0.0, -1)));
+  with addSystem[Unit, Unit, Prefab]() { { _ } =>
+    do setResource[Time](updateTime(do getResource[Time]()));
+  };
+  prog();
+}
+
+def updateTime(time: Time): Time = {
+  val now = jsGetTime();
+  Time(now - time.gameTime, now, time.frame + 1)
+}
+
+def initInput(): Unit = {
+  jsRegisterEvents();
+}
+
+extern io def jsRegisterEvents(): Unit =
+  js "registerEvents()"
+
+extern pure def jsIsInput1Up(): Bool =
   js "isInput1Up()"
 
-extern pure def isInput1Down(): Bool =
+extern pure def jsIsInput1Down(): Bool =
   js "isInput1Down()"
 
-extern pure def isInput2Up(): Bool =
+extern pure def jsIsInput2Up(): Bool =
   js "isInput2Up()"
 
-extern pure def isInput2Down(): Bool =
+extern pure def jsIsInput2Down(): Bool =
   js "isInput2Down()"
 
-extern pure def isInputEscape(): Bool =
+extern pure def jsIsInputEscape(): Bool =
   js "isInputEscape()"
 
-extern pure def getTime(): Double =
+extern pure def jsGetTime(): Double =
   js "window.performance.now() / 1000.0"
 
 extern js """
