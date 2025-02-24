@@ -8,6 +8,7 @@ import game_engine_lib/core
 import game_engine_lib/ecs
 import game_engine_lib/engine
 import game_engine_lib/canvas_renderer
+import game_engine_lib/input
 
 /*
 type Side {
@@ -61,9 +62,17 @@ def main() = {
       val deltaTime = (do getResource[Time]()).deltaTime;
       values match {
         case transform => {
+          val movement = deltaTime * PI * 2.0 * 0.2;
+          val rot = if (jsGetKey("ArrowRight")) {
+            movement
+          } else if (jsGetKey("ArrowLeft")) {
+            0.0 - movement
+          } else {
+            0.0
+          };
           Transform(
             transform.position,
-            limitRotation(transform.rotation + deltaTime * PI * 2.0 * 0.2),
+            limitRotation(transform.rotation + rot),
             transform.scale
           )
         }

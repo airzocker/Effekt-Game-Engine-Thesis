@@ -132,6 +132,7 @@ extern io def jsRestore(context: CanvasRenderingContext2D): Unit =
   js "(${context}).restore()"
 
 extern js """
+
 const canvas = document.getElementById('myCanvas');
 
 function initCanvas() {
@@ -161,4 +162,5 @@ function clearCanvas(context) {
   //context.clearRect(0, 0, canvas.width, canvas.height);
   //context.beginPath();
 }
+
 """
