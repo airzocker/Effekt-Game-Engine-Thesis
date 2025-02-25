@@ -56,8 +56,25 @@ def main() = {
   with component[Shape]();
 
   with canvasRenderer();
-  
+
   with addSystem[(Transform), (Shape), Prefab]() { { query } =>
+    /*
+    val deltaTime = (do getResource[Time]()).deltaTime;
+    val transform = (do getResource[Camera]()).transform;
+    val movement = deltaTime * PI * 2.0 * 0.2;
+    val rot = if (jsGetKey("ArrowRight")) {
+      movement
+    } else if (jsGetKey("ArrowLeft")) {
+      0.0 - movement
+    } else {
+      0.0
+    };
+    do setResource[Camera](Camera(CameraTransform(
+      transform.position,
+      limitRotation(transform.rotation + rot),
+      10.0
+    )));
+    */
     query.foreachRW() { (entity, values) =>
       val deltaTime = (do getResource[Time]()).deltaTime;
       values match {
@@ -83,8 +100,13 @@ def main() = {
   do createEntity[(Transform, Shape)]((Transform(
     zero(),
     0.0,
-    uniformScale(2.0)
+    Vector2(3.0, 1.5)
   ), Rect(Color(255, 0, 255))));
+  do createEntity[(Transform, Shape)]((Transform(
+    Vector2(4.0, 2.0),
+    0.0,
+    Vector2(3.0, 1.5)
+  ), Circle(Color(255, 0, 255))));
 
   do runWorld();
   

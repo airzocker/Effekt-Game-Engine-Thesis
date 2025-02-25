@@ -13,8 +13,9 @@ type Shape {
   Text(color: Color, text: String);
 }
 
-record WindowProperties(size: Vector2Int)
+record CameraTransform(position: Vector2, rotation: Double, height: Double)
 record Camera(transform: CameraTransform)
+record WindowProperties(size: Vector2Int)
 
 def canvasRenderer() { prog: => Unit / {
   Resource[Camera], Resource[WindowProperties], Components[(Transform, Shape)], System
@@ -57,8 +58,8 @@ def getWindowProperties(): WindowProperties = {
 
 def setTransform(context: CanvasRenderingContext2D, transform: Transform): Unit = {
   jsTranslate(context, transform.position.x, 0.0 - transform.position.y);
-  jsScale(context, transform.scale.x, transform.scale.y);
   jsRotate(context, transform.rotation);
+  jsScale(context, transform.scale.x, transform.scale.y);
 }
 
 def setCameraTransform(context: CanvasRenderingContext2D, transform: CameraTransform): Unit = {
@@ -159,8 +160,6 @@ function resizeCanvas() {
 function clearCanvas(context) {
   context.fillStyle = "rgb(0 0 0)";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  //context.clearRect(0, 0, canvas.width, canvas.height);
-  //context.beginPath();
 }
 
 """

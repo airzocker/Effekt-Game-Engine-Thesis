@@ -10,7 +10,6 @@ import game_engine_lib/input
 type Prefab = Unit
 
 record Transform(position: Vector2, rotation: Double, scale: Vector2)
-record CameraTransform(position: Vector2, rotation: Double, height: Double)
 record Time(deltaTime: Double, gameTime: Double, frame: Int)
 
 interface World {
