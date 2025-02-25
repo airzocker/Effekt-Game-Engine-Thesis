@@ -52,9 +52,6 @@ def scoreSide(scores: Scores, side: Side): Scores = {
 def main() = {
   with world();
 
-  with component[Transform]();
-  with component[Shape]();
-
   with canvasRenderer();
 
   with addSystem[(Transform), (Shape), Prefab]() { { query } =>

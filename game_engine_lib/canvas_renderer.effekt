@@ -12,18 +12,23 @@ type Shape {
   Rect(color: Color);
   Text(color: Color, text: String);
 }
-
 record CameraTransform(position: Vector2, rotation: Double, height: Double)
 record Camera(transform: CameraTransform)
 record WindowProperties(size: Vector2Int)
 
 def canvasRenderer() { prog: => Unit / {
-  Resource[Camera], Resource[WindowProperties], Components[(Transform, Shape)], System
+  Resource[Camera], Resource[WindowProperties], Component[Shape],
+  Components[(Shape)],
+  Components[(Transform, Shape)],
+  System
 } }: Unit / {
-  Component[Transform], Component[Shape], Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
+  Component[Transform],
+  Components[(Prefab)], Components[Unit],
+  nextEntityId, nextComponentId, System, ArchManager, EntityManager, World
 } = {
   val context = jsGetContext();
   jsInitCanvas();
+  with component[Shape]();
   with createResource[WindowProperties](getWindowProperties());
   with createResource[Camera](Camera(CameraTransform(
     zero(),

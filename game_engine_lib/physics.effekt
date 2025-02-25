@@ -1,0 +1,72 @@
+module physics
+
+import game_engine_lib/math
+import game_engine_lib/engine
+import game_engine_lib/ecs
+
+type Gravity = Vector2
+type Collider {
+  Circle();
+  AABB();
+}
+// Contains the last position
+type Rigidbody = Vector2
+type Trigger = Unit
+
+def physicsEngine() { prog: => Unit / {
+  Resource[Gravity], Component[Collider], Component[Rigidbody], Component[Trigger],
+  Components[(Collider)], Components[(Rigidbody)], Components[(Trigger)],
+  Components[(Transform, Collider)], Components[(Transform, Velocity)], Components[(Transform, Rigidbody)], Components[(Rigidbody)],
+  System
+} }: Unit / {
+  Resource[Time], Component[Transform],
+  Components[(Prefab)], Components[(Velocity)], Components[Unit],
+  nextEntityId, nextComponentId, System, ArchManager, EntityManager, World
+} = {
+  with component[Collider]();
+  with component[Rigidbody]();
+  with component[Trigger]();
+  with createResource[Gravity](Vector2(0.0, -9.81));
+  with zipComponents2[Transform, Collider]();
+  with zipComponents2[Transform, Velocity]();
+  with zipComponents2[Prefab, Rigidbody]();
+  // Save last position on rigidbodies
+  with addSystem[(Transform, Rigidbody), Unit, (Prefab)]() { { query } =>
+    query.foreachRW() { (entity, values) =>
+      values match {
+        case (transform, rigidbody) => {
+          (transform, transform.position)
+        }
+      }
+    }
+    ()
+  };
+  // Add gravity to rigidbodies velocities
+  with addSystem[(Velocity), (Rigidbody), (Prefab)]() { { query } =>
+    val deltaTime = (do getResource[Time]()).deltaTime;
+    val acceleration = do getResource[Gravity]() * deltaTime;
+    query.foreachRW() { (entity, values) =>
+      values match {
+        case velocity => {
+          (velocity + acceleration)
+        }
+      }
+    }
+    ()
+  };
+  // Apply velocities to transforms
+  with addSystem[(Transform, Velocity), Unit, (Prefab)]() { { query } =>
+    val deltaTime = (do getResource[Time]()).deltaTime;
+    val gravity = do getResource[Gravity]();
+    query.foreachRW() { (entity, values) =>
+      values match {
+        case (transform, velocity) => {
+          (Transform(transform.position + velocity * deltaTime, transform.rotation, transform.scale), velocity)
+        }
+      }
+    }
+    ()
+  };
+  // TODO: physics calcs
+  prog();
+}
