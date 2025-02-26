@@ -98,16 +98,12 @@ def component[T]() { prog: => Unit / {
       def iterTuplesRO(archId) = {
         resume { { prog } =>
           with do iterRO[T](archId);
-          println("iterTuplesRO (1)");
           prog();
         }
       }
       def iterTuplesRW(archId) = {
-        println("starting iterTuplesRW");
         resume { { prog } =>
-          println("iterTuplesRW before iterRW");
           with do iterRW[T](archId);
-          println("iterTuplesRW (1)");
           prog();
         }
       }
@@ -130,7 +126,6 @@ def component[T]() { prog: => Unit / {
       resume { { prog } =>
         val components = componentStore.unsafeGet(archId);
         var index = 0;
-        println("iterRO with: " ++ components.size().show());
         try {
           prog();
         } with read[T] {
@@ -151,7 +146,6 @@ def component[T]() { prog: => Unit / {
         val components = componentStore.unsafeGet(archId);
         var readIndex = 0;
         var writeIndex = 0;
-        println("iterRW with: " ++ components.size().show());
         try {
           prog();
         } with read[T] {
@@ -232,7 +226,6 @@ def defaultComponents() { prog: => Unit / Components[Unit] }: Unit = {
       }
     }
     def iterTuplesRW(archId) = {
-      println("starting iterTuplesRW (Unit)");
       resume { { prog } =>
         try {
           prog();
@@ -285,7 +278,6 @@ def zipComponents2[
       resume { { prog } =>
         with do iterRO[A](archId);
         with do iterRO[B](archId);
-        println("iterTuplesRO (2)");
         try {
           prog();
         } with read[(
@@ -302,11 +294,9 @@ def zipComponents2[
       }
     }
     def iterTuplesRW(archId) = {
-      println("starting iterTuplesRW (2)");
       resume { { prog } =>
         with do iterRW[A](archId);
         with do iterRW[B](archId);
-        println("iterTuplesRW (2)");
         try {
           prog();
         } with read[(
@@ -1243,11 +1233,6 @@ def query[T, With, Without]()
           try {
             with do iterEntitiesRO(archId);
             with do iterTuplesRO[T](archId);
-            println("foreachRO, components (count): " ++ componentIds.size().show());
-            (do getIds[T]()).foreach() { id =>
-              println(id.show());
-            }
-            println("foreachRO");
             loop {
               action(do read(), do read());
             }
@@ -1269,9 +1254,9 @@ def query[T, With, Without]()
             }
             loop {
               val entity = do read[Entity]();
-              println("after entity: " ++ entity.id.show());
+              //println("after entity: " ++ entity.id.show());
               val value = do read[T]();
-              println("after value");
+              //println("after value");
               do emit(action(entity, value));
             }
           } with stop {

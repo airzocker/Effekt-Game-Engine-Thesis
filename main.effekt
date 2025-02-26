@@ -118,9 +118,9 @@ def main() = {
       10.0
     )));
     */
-    println("rotation:");
+    println("starting rotation system...");
     query.foreachRW() { (entity, transform) =>
-      println("object");
+      println("handling entity...");
       val deltaTime = (do getResource[Time]()).deltaTime;
       val movement = deltaTime * PI * 2.0 * 0.2;
       val rot = if (jsGetKey("ArrowRight")) {
@@ -161,7 +161,8 @@ def main() = {
   ), Circle(Color(255, 0, 255))));
   */
 
-  do runWorld();
+  //do runWorld();
+  do stepWorld();
   
   //with defaultContext;
   
