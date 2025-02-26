@@ -7,10 +7,9 @@ import game_engine_lib/math
 import game_engine_lib/ecs
 import game_engine_lib/input
 
-type Prefab = Unit
+record Prefab()
 record Transform(position: Vector2, rotation: Double, scale: Vector2)
 record Time(deltaTime: Double, gameTime: Double, frame: Int)
-type Velocity = Vector2
 
 interface World {
   def stepWorld(): Unit / System
@@ -33,19 +32,14 @@ def uniformScale(scale: Double): Vector2 = {
 }
 
 def world() { prog: => Unit / {
-  Resource[Time], Component[Prefab], Component[Transform], Component[Velocity],
-  Components[(Prefab)], Components[(Transform)], Components[(Velocity)],
-  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], System, World
-} } = {
+  Resource[Time], Component[Prefab], Component[Transform],
+  Components[Unit], Components[Prefab], Components[Transform],
+  nextComponentId, nextEntityId, ArchManager, EntityManager, System, World
+} }: Unit = {
   with componentIdManager();
   with entityIdManager();
   with archManager();
   with entityManager();
-  with defaultComponents();
-  with defaultSystem();
-  with component[Prefab]();
-  with component[Transform]();
-  with component[Velocity]();
   def stepWorld() = {
     do updateQueries();
     jsClearFrameInput();
@@ -54,6 +48,10 @@ def world() { prog: => Unit / {
     };
   }
   try {
+    with defaultComponents();
+    with component[Prefab]();
+    with component[Transform]();
+    with defaultSystem();
     with timeSystem();
     jsInitInput();
     prog();
@@ -78,12 +76,14 @@ def world() { prog: => Unit / {
 }
 
 def timeSystem() { prog: => Unit / {
-  Resource[Time], System
+  Resource[Time],
+  System
 } }: Unit / {
-  Components[Unit], nextEntityId, System, ArchManager, EntityManager, World
+  Components[Prefab], Components[Unit],
+  nextEntityId, System, ArchManager, EntityManager, World
 } = {
   with createResource[Time](updateTime(Time(0.0, 0.0, -1)));
-  with addSystem[Unit, Unit, Prefab]() { { _ } =>
+  with addSystem[Unit, Unit, Unit]() { { _ } =>
     do setResource[Time](updateTime(do getResource[Time]()));
   };
   prog();

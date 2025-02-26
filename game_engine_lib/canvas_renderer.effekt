@@ -13,18 +13,18 @@ type Shape {
   Text(color: Color, text: String);
 }
 record CameraTransform(position: Vector2, rotation: Double, height: Double)
-record Camera(transform: CameraTransform)
+record Camera(cameraTransform: CameraTransform)
 record WindowProperties(size: Vector2Int)
 
 def canvasRenderer() { prog: => Unit / {
   Resource[Camera], Resource[WindowProperties], Component[Shape],
-  Components[(Shape)],
+  Components[Shape],
   Components[(Transform, Shape)],
   System
 } }: Unit / {
   Component[Transform],
-  Components[(Prefab)], Components[Unit],
-  nextEntityId, nextComponentId, System, ArchManager, EntityManager, World
+  Components[Prefab], Components[Unit],
+  nextEntityId, nextComponentId, System, ArchManager, EntityManager
 } = {
   val context = jsGetContext();
   jsInitCanvas();
@@ -37,12 +37,14 @@ def canvasRenderer() { prog: => Unit / {
   )));
   with zipComponents2[Transform, Shape]();
   with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
+    println("rendering:");
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
-    setCameraTransform(context, (do getResource[Camera]()).transform);
+    setCameraTransform(context, (do getResource[Camera]()).cameraTransform);
     query.foreachRO() { (entity, values) =>
+      println("shape");
       values match {
         case (transform, shape) => {
           jsSave(context);

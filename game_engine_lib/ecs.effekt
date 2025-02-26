@@ -70,7 +70,7 @@ interface System {
   def step(): Unit / EntityManager
 }
 
-def componentIdManager() { prog: => Unit / nextComponentId } = {
+def componentIdManager() { prog: => Unit / nextComponentId }: Unit = {
   var lastComponentId = 0;
   try {
     prog();
@@ -81,15 +81,47 @@ def componentIdManager() { prog: => Unit / nextComponentId } = {
 }
 
 def component[T]() { prog: => Unit / {
-  Component[T], Components[(T)], nextEntityId
+  Component[T], Components[T]
 } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
   val componentId = do nextComponentId();
   var componentStore: Map[Int, ResizableArray[T]] = emptyMap();
   try {
-    with zipComponents1[(T)]();
-    prog();
+    val componentIds = [do getId[T]()];
+    try {
+      prog();
+    } with Components[T] {
+      def getIds() = {
+        resume(componentIds)
+      }
+      def iterTuplesRO(archId) = {
+        resume { { prog } =>
+          with do iterRO[T](archId);
+          println("iterTuplesRO (1)");
+          prog();
+        }
+      }
+      def iterTuplesRW(archId) = {
+        println("starting iterTuplesRW");
+        resume { { prog } =>
+          println("iterTuplesRW before iterRW");
+          with do iterRW[T](archId);
+          println("iterTuplesRW (1)");
+          prog();
+        }
+      }
+      def addComponentTuple(archId, value) = {
+        resume(
+          do addComponent(archId, value)
+        )
+      }
+      def removeSwapComponentTuple(archId, index) = {
+        resume(
+          do removeSwapComponent[T](archId, index)
+        )
+      }
+    }
   } with Component[T] {
     def getId() = {
       resume(componentId)
@@ -98,6 +130,7 @@ def component[T]() { prog: => Unit / {
       resume { { prog } =>
         val components = componentStore.unsafeGet(archId);
         var index = 0;
+        println("iterRO with: " ++ components.size().show());
         try {
           prog();
         } with read[T] {
@@ -118,6 +151,7 @@ def component[T]() { prog: => Unit / {
         val components = componentStore.unsafeGet(archId);
         var readIndex = 0;
         var writeIndex = 0;
+        println("iterRW with: " ++ components.size().show());
         try {
           prog();
         } with read[T] {
@@ -178,7 +212,7 @@ def component[T]() { prog: => Unit / {
   }
 }
 
-def defaultComponents() { prog: => Unit / Components[Unit] } = {
+def defaultComponents() { prog: => Unit / Components[Unit] }: Unit = {
   val componentIds = empty();
   try {
     prog();
@@ -198,6 +232,7 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
       }
     }
     def iterTuplesRW(archId) = {
+      println("starting iterTuplesRW (Unit)");
       resume { { prog } =>
         try {
           prog();
@@ -217,82 +252,6 @@ def defaultComponents() { prog: => Unit / Components[Unit] } = {
     def removeSwapComponentTuple(archId, index) = {
       println("removeSwapTuple for Unit Components makes no sense!");
       resume(None())
-    }
-  }
-}
-
-def zipComponents1[
-  A
-]() { prog: => Unit / { Components[(
-  A
-)] } }: Unit / {
-  EntityManager,
-  nextEntityId,
-  Component[A]
-} = {
-  val componentIds = [
-    do getId[A]()
-  ].sort();
-  try {
-    prog();
-  } with Components[(
-    A
-  )] {
-    def getIds() = {
-      resume(componentIds)
-    }
-    def iterTuplesRO(archId) = {
-      resume { { prog } =>
-        with do iterRO[A](archId);
-        try {
-          prog();
-        } with read[(
-          A
-        )] {
-          resume {
-            (
-              do read[A]()
-            )
-          }
-        }
-      }
-    }
-    def iterTuplesRW(archId) = {
-      resume { { prog } =>
-        with do iterRW[A](archId);
-        try {
-          prog();
-        } with read[(
-          A
-        )] {
-          resume {
-            (
-              do read[A]()
-            )
-          }
-        } with emit[(
-          A
-        )] { value =>
-          value match {
-            case a =>
-              do emit(a);
-          }
-          resume(())
-        }
-      }
-    }
-    def addComponentTuple(archId, value) = {
-      resume(
-        value match {
-          case a =>
-            do addComponent(archId, a);
-        }
-      )
-    }
-    def removeSwapComponentTuple(archId, index) = {
-      resume(
-        do removeSwapComponent[A](archId, index)
-      )
     }
   }
 }
@@ -326,6 +285,7 @@ def zipComponents2[
       resume { { prog } =>
         with do iterRO[A](archId);
         with do iterRO[B](archId);
+        println("iterTuplesRO (2)");
         try {
           prog();
         } with read[(
@@ -342,9 +302,11 @@ def zipComponents2[
       }
     }
     def iterTuplesRW(archId) = {
+      println("starting iterTuplesRW (2)");
       resume { { prog } =>
         with do iterRW[A](archId);
         with do iterRW[B](archId);
+        println("iterTuplesRW (2)");
         try {
           prog();
         } with read[(
@@ -952,7 +914,7 @@ def zipComponents6[
   }
 }
 
-def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
+def createResource[T](value: T) { prog: => Unit / Resource[T] }: Unit = {
   var resourceValue = value;
   try {
     prog();
@@ -967,7 +929,7 @@ def createResource[T](value: T) { prog: => Unit / Resource[T] } = {
   }
 }
 
-def archManager() { prog: => Unit / ArchManager } = {
+def archManager() { prog: => Unit / ArchManager }: Unit = {
   val archs = resizableArray(4);
   val freeIndices = resizableArray(4);
   var hasChanged = false;
@@ -996,50 +958,49 @@ def archManager() { prog: => Unit / ArchManager } = {
     }
   }
   def updateFindArchs(componentIds: List[Int], withoutIds: List[Int], archIds: Ref[ResizableArray[Int]]) = {
-    if (componentIds.size() == 0) {
-      return ()
-    }
-    val newArchIds = resizableArray(4);
-    archs.foreachIndex() { (archId, arch) { l } =>
-      var foundAll = false;
-      var withoutAll = true;
-      try {
-        with source[Int]() { each(componentIds) };
-        var checkComponent = do read[Int]();
-        arch.componentIds.foreach() { (componentId) { fl } =>
-          if (componentId > checkComponent) {
-            fl.break();
-          }
-          if (componentId == checkComponent) {
-            checkComponent = do read[Int]();
-          }
-        }
-      } with stop {
-        foundAll = true;
-      }
-      if (foundAll) {
+    if (componentIds.size() > 0) {
+      val newArchIds = resizableArray(4);
+      archs.foreachIndex() { (archId, arch) { l } =>
+        var foundAll = false;
+        var withoutAll = true;
         try {
-          with source[Int]() { each(withoutIds) };
+          with source[Int]() { each(componentIds) };
           var checkComponent = do read[Int]();
           arch.componentIds.foreach() { (componentId) { fl } =>
-            while (componentId > checkComponent) {
-              checkComponent = do read[Int]();
+            if (componentId > checkComponent) {
+              fl.break();
             }
             if (componentId == checkComponent) {
-              withoutAll = false;
-              fl.break();
+              checkComponent = do read[Int]();
             }
           }
         } with stop {
+          foundAll = true;
+        }
+        if (foundAll) {
+          try {
+            with source[Int]() { each(withoutIds) };
+            var checkComponent = do read[Int]();
+            arch.componentIds.foreach() { (componentId) { fl } =>
+              while (componentId > checkComponent) {
+                checkComponent = do read[Int]();
+              }
+              if (componentId == checkComponent) {
+                withoutAll = false;
+                fl.break();
+              }
+            }
+          } with stop {
+            ()
+          }
+        }
+        if (foundAll && withoutAll) {
+          newArchIds.add(archId);
           ()
         }
       }
-      if (foundAll && withoutAll) {
-        newArchIds.add(archId);
-        ()
-      }
+      archIds.set(newArchIds);
     }
-    archIds.set(newArchIds);
   }
   try {
     prog();
@@ -1120,7 +1081,7 @@ def archManager() { prog: => Unit / ArchManager } = {
   }
 }
 
-def entityIdManager() { prog: => Unit / nextEntityId } = {
+def entityIdManager() { prog: => Unit / nextEntityId }: Unit = {
   var lastEntityId = 0;
   try {
     prog();
@@ -1282,6 +1243,11 @@ def query[T, With, Without]()
           try {
             with do iterEntitiesRO(archId);
             with do iterTuplesRO[T](archId);
+            println("foreachRO, components (count): " ++ componentIds.size().show());
+            (do getIds[T]()).foreach() { id =>
+              println(id.show());
+            }
+            println("foreachRO");
             loop {
               action(do read(), do read());
             }
@@ -1297,8 +1263,16 @@ def query[T, With, Without]()
           try {
             with do iterEntitiesRO(archId);
             with do iterTuplesRW[T](archId);
+            println("foreachRW, components (count): " ++ componentIds.size().show());
+            (do getIds[T]()).foreach() { id =>
+              println(id.show());
+            }
             loop {
-              do emit(action(do read(), do read()));
+              val entity = do read[Entity]();
+              println("after entity: " ++ entity.id.show());
+              val value = do read[T]();
+              println("after value");
+              do emit(action(entity, value));
             }
           } with stop {
             ()

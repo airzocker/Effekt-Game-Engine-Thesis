@@ -49,12 +49,58 @@ def scoreSide(scores: Scores, side: Side): Scores = {
 }
 */
 
+def addTransform() { prog: => Unit / { Component[Transform], Components[Transform] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Transform]();
+  prog();
+}
+
 def main() = {
   with world();
 
-  with canvasRenderer();
+  //with addTransform();
 
-  with addSystem[(Transform), (Shape), Prefab]() { { query } =>
+  //with component[Shape]();
+  //with zipComponents2[Transform, Shape]();
+  //with canvasRenderer();
+  /*
+  def testfun() = {
+    val context = jsGetContext();
+    jsInitCanvas();
+    with component[Shape]();
+    with createResource[WindowProperties](getWindowProperties());
+    with createResource[Camera](Camera(CameraTransform(
+      zero(),
+      0.0,
+      10.0
+    )));
+    with zipComponents2[Transform, Shape]();
+    with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
+      println("rendering:");
+      do setResource[WindowProperties](getWindowProperties());
+      jsResetTransform(context);
+      jsClearCanvas(context);
+      jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
+      setCameraTransform(context, (do getResource[Camera]()).cameraTransform);
+      query.foreachRO() { (entity, values) =>
+        println("shape");
+        values match {
+          case (transform, shape) => {
+            jsSave(context);
+            setTransform(context, transform);
+            drawShape(context, shape);
+            jsRestore(context);
+          }
+        }
+        ()
+      }
+    }
+    ()
+  }
+  */
+
+  with addSystem[Transform, Unit, Prefab]() { { query } =>
     /*
     val deltaTime = (do getResource[Time]()).deltaTime;
     val transform = (do getResource[Camera]()).transform;
@@ -72,28 +118,37 @@ def main() = {
       10.0
     )));
     */
-    query.foreachRW() { (entity, values) =>
+    println("rotation:");
+    query.foreachRW() { (entity, transform) =>
+      println("object");
       val deltaTime = (do getResource[Time]()).deltaTime;
-      values match {
-        case transform => {
-          val movement = deltaTime * PI * 2.0 * 0.2;
-          val rot = if (jsGetKey("ArrowRight")) {
-            movement
-          } else if (jsGetKey("ArrowLeft")) {
-            0.0 - movement
-          } else {
-            0.0
-          };
-          Transform(
-            transform.position,
-            limitRotation(transform.rotation + rot),
-            transform.scale
-          )
-        }
-      }
+      val movement = deltaTime * PI * 2.0 * 0.2;
+      val rot = if (jsGetKey("ArrowRight")) {
+        movement
+      } else if (jsGetKey("ArrowLeft")) {
+        0.0 - movement
+      } else {
+        0.0
+      };
+      Transform(
+        transform.position,
+        limitRotation(transform.rotation + rot),
+        transform.scale
+      )
     }
   };
 
+  do createEntity[Transform](Transform(
+    zero(),
+    0.0,
+    Vector2(3.0, 1.5)
+  ));
+  do createEntity[Transform](Transform(
+    Vector2(4.0, 2.0),
+    0.0,
+    Vector2(3.0, 1.5)
+  ));
+/*
   do createEntity[(Transform, Shape)]((Transform(
     zero(),
     0.0,
@@ -104,6 +159,7 @@ def main() = {
     0.0,
     Vector2(3.0, 1.5)
   ), Circle(Color(255, 0, 255))));
+  */
 
   do runWorld();
   
