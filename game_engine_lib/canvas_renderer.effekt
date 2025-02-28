@@ -37,14 +37,12 @@ def canvasRenderer() { prog: => Unit / {
   )));
   with zipComponents2[Transform, Shape]();
   with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
-    println("rendering:");
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
     setCameraTransform(context, (do getResource[Camera]()).cameraTransform);
     query.foreachRO() { (entity, values) =>
-      println("shape");
       values match {
         case (transform, shape) => {
           jsSave(context);
@@ -119,7 +117,7 @@ extern io def jsInitFont(context: CanvasRenderingContext2D): Unit =
   js "initFont(${context}, 1)"
 
 extern io def jsFillText(context: CanvasRenderingContext2D, text: String): Unit =
-  js "(${context}).fillText(${text}, 0, 0)"
+  js "(${context}).fillText(${text}, 0, 0.36)"
 
 extern io def jsTranslate(context: CanvasRenderingContext2D, x: Double, y: Double): Unit =
   js "(${context}).translate(${x}, ${y})"

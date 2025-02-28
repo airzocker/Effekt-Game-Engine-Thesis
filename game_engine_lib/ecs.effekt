@@ -1248,15 +1248,9 @@ def query[T, With, Without]()
           try {
             with do iterEntitiesRO(archId);
             with do iterTuplesRW[T](archId);
-            println("foreachRW, components (count): " ++ componentIds.size().show());
-            (do getIds[T]()).foreach() { id =>
-              println(id.show());
-            }
             loop {
               val entity = do read[Entity]();
-              //println("after entity: " ++ entity.id.show());
               val value = do read[T]();
-              //println("after value");
               do emit(action(entity, value));
             }
           } with stop {

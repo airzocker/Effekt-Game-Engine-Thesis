@@ -59,51 +59,10 @@ def addTransform() { prog: => Unit / { Component[Transform], Components[Transfor
 def main() = {
   with world();
 
-  //with addTransform();
-
-  //with component[Shape]();
-  //with zipComponents2[Transform, Shape]();
-  //with canvasRenderer();
-  /*
-  def testfun() = {
-    val context = jsGetContext();
-    jsInitCanvas();
-    with component[Shape]();
-    with createResource[WindowProperties](getWindowProperties());
-    with createResource[Camera](Camera(CameraTransform(
-      zero(),
-      0.0,
-      10.0
-    )));
-    with zipComponents2[Transform, Shape]();
-    with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
-      println("rendering:");
-      do setResource[WindowProperties](getWindowProperties());
-      jsResetTransform(context);
-      jsClearCanvas(context);
-      jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
-      setCameraTransform(context, (do getResource[Camera]()).cameraTransform);
-      query.foreachRO() { (entity, values) =>
-        println("shape");
-        values match {
-          case (transform, shape) => {
-            jsSave(context);
-            setTransform(context, transform);
-            drawShape(context, shape);
-            jsRestore(context);
-          }
-        }
-        ()
-      }
-    }
-    ()
-  }
-  */
+  with canvasRenderer();
 
   with addSystem[Transform, Unit, Prefab]() { { query } =>
-    /*
     val deltaTime = (do getResource[Time]()).deltaTime;
-    val transform = (do getResource[Camera]()).transform;
     val movement = deltaTime * PI * 2.0 * 0.2;
     val rot = if (jsGetKey("ArrowRight")) {
       movement
@@ -112,24 +71,7 @@ def main() = {
     } else {
       0.0
     };
-    do setResource[Camera](Camera(CameraTransform(
-      transform.position,
-      limitRotation(transform.rotation + rot),
-      10.0
-    )));
-    */
-    println("starting rotation system...");
     query.foreachRW() { (entity, transform) =>
-      println("handling entity...");
-      val deltaTime = (do getResource[Time]()).deltaTime;
-      val movement = deltaTime * PI * 2.0 * 0.2;
-      val rot = if (jsGetKey("ArrowRight")) {
-        movement
-      } else if (jsGetKey("ArrowLeft")) {
-        0.0 - movement
-      } else {
-        0.0
-      };
       Transform(
         transform.position,
         limitRotation(transform.rotation + rot),
@@ -138,17 +80,6 @@ def main() = {
     }
   };
 
-  do createEntity[Transform](Transform(
-    zero(),
-    0.0,
-    Vector2(3.0, 1.5)
-  ));
-  do createEntity[Transform](Transform(
-    Vector2(4.0, 2.0),
-    0.0,
-    Vector2(3.0, 1.5)
-  ));
-/*
   do createEntity[(Transform, Shape)]((Transform(
     zero(),
     0.0,
@@ -159,12 +90,29 @@ def main() = {
     0.0,
     Vector2(3.0, 1.5)
   ), Circle(Color(255, 0, 255))));
-  */
+  do createEntity[(Transform, Shape)]((Transform(
+    Vector2(-4.0, 2.0),
+    0.0,
+    Vector2(1.0, 1.0)
+  ), Text(Color(255, 0, 255), "Test-text")));
+  do createEntity[(Transform, Shape)]((Transform(
+    Vector2(-4.0, -2.0),
+    0.0,
+    Vector2(1.333, 0.75)
+  ), Text(Color(255, 0, 255), "stretched")));
+  do createEntity[(Transform, Shape)]((Transform(
+    Vector2(4.0, -2.0),
+    0.0,
+    Vector2(0.75, 1.333)
+  ), Text(Color(255, 0, 255), "squished")));
 
-  //do runWorld();
-  do stepWorld();
-  
-  //with defaultContext;
+  do setResource[Camera](Camera(CameraTransform(
+    zero(),
+    0.0,
+    16.0
+  )));
+
+  do runWorld();
   
   /*
   val playAreaSize = Vector2Int(getCanvasHeight(), getCanvasHeight());
