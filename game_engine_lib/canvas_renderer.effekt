@@ -23,7 +23,7 @@ def canvasRenderer() { prog: => Unit / {
   System
 } }: Unit / {
   Component[Transform],
-  Components[Prefab], Components[Unit],
+  Components[Unit],
   nextEntityId, nextComponentId, System, ArchManager, EntityManager
 } = {
   val context = jsGetContext();
@@ -36,7 +36,7 @@ def canvasRenderer() { prog: => Unit / {
     10.0
   )));
   with zipComponents2[Transform, Shape]();
-  with addSystem[(Transform, Shape), Unit, Prefab]() { { query } =>
+  with addSystem[(Transform, Shape), Unit, Unit]() { { query } =>
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);

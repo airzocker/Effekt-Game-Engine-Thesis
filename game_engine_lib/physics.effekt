@@ -23,7 +23,7 @@ def physicsEngine() { prog: => Unit / {
   System
 } }: Unit / {
   Resource[Time], Component[Transform],
-  Components[Prefab], Components[Velocity], Components[Unit],
+  Components[Velocity], Components[Unit],
   nextEntityId, nextComponentId, System, ArchManager, EntityManager
 } = {
   with component[Velocity]();
@@ -35,7 +35,7 @@ def physicsEngine() { prog: => Unit / {
   with zipComponents2[Transform, Velocity]();
   //with zipComponents2[Transform, Collider]();
   // Save last position on rigidbodies
-  with addSystem[(Transform, Rigidbody), Unit, Prefab]() { { query } =>
+  with addSystem[(Transform, Rigidbody), Unit, Unit]() { { query } =>
     query.foreachRW() { (entity, values) =>
       values match {
         case (transform, rigidbody) => {
@@ -46,7 +46,7 @@ def physicsEngine() { prog: => Unit / {
     ()
   };
   // Add gravity to rigidbodies velocities
-  with addSystem[Velocity, Rigidbody, Prefab]() { { query } =>
+  with addSystem[Velocity, Rigidbody, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val acceleration = (do getResource[Gravity]()).value * deltaTime;
     query.foreachRW() { (entity, velocity) =>
@@ -55,7 +55,7 @@ def physicsEngine() { prog: => Unit / {
     ()
   };
   // Apply velocities to transforms
-  with addSystem[(Transform, Velocity), Unit, Prefab]() { { query } =>
+  with addSystem[(Transform, Velocity), Unit, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val gravity = do getResource[Gravity]();
     query.foreachRW() { (entity, values) =>
