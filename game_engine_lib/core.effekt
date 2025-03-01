@@ -15,6 +15,13 @@ function map$delete(m, key) {
 extern io def delete[K, V](m: Map[K, V], key: K): Unit =
   js "map$delete(${m}, ${key})"
 
+def addSome[T](l: List[T], value: Option[T]): List[T] = {
+  value match {
+    case Some(v) => l.append([v])
+    case None() => l
+  }
+}
+
 // Returns the index that got swapped away (to the removed index), if any
 def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
   val newSize = arr.size() - 1;

@@ -17,10 +17,12 @@ record Arch(componentIds: List[Int], entities: ResizableArray[Entity])
 
 effect nextComponentId(): Int
 
+effect invalidArchID(): Unit
+
 interface Component[T] {
-  def getId(): Int
-  def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
-  def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
+  def getQueryId(): Option[Int]
+  def iterRO(archId: Int) { prog: => Unit / read[T] }: Unit / { stop, invalidArchID }
+  def iterRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / { stop, invalidArchID }
   def addComponent(archId: Int, value: T): Int
   def removeSwapComponent(archId: Int, index: Int): Option[Int]
   def getComponent(archId: Int, index: Int): T
@@ -28,7 +30,7 @@ interface Component[T] {
 }
 
 interface Components[T] {
-  def getIds(): List[Int]
+  def getQueryIds(): List[Int]
   def iterTuplesRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
   def iterTuplesRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
   def addComponentTuple(archId: Int, value: T): Int
@@ -70,6 +72,14 @@ interface System {
   def step(): Unit / EntityManager
 }
 
+def panicOnInvaildArchId() { prog: => Unit / invalidArchID }: Unit = {
+  try {
+    prog();
+  } with invalidArchID {
+    panic("Invalid archId!");
+  }
+}
+
 def componentIdManager() { prog: => Unit / nextComponentId }: Unit = {
   var lastComponentId = 0;
   try {
@@ -80,51 +90,26 @@ def componentIdManager() { prog: => Unit / nextComponentId }: Unit = {
   }
 }
 
-def component[T]() { prog: => Unit / {
-  Component[T], Components[T]
-} }: Unit / {
+def addComponent[T]() { prog: => Unit / Component[T] }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
   val componentId = do nextComponentId();
   var componentStore: Map[Int, ResizableArray[T]] = emptyMap();
   try {
-    val componentIds = [do getId[T]()];
-    try {
-      prog();
-    } with Components[T] {
-      def getIds() = {
-        resume(componentIds)
-      }
-      def iterTuplesRO(archId) = {
-        resume { { prog } =>
-          with do iterRO[T](archId);
-          prog();
-        }
-      }
-      def iterTuplesRW(archId) = {
-        resume { { prog } =>
-          with do iterRW[T](archId);
-          prog();
-        }
-      }
-      def addComponentTuple(archId, value) = {
-        resume(
-          do addComponent(archId, value)
-        )
-      }
-      def removeSwapComponentTuple(archId, index) = {
-        resume(
-          do removeSwapComponent[T](archId, index)
-        )
-      }
-    }
+    prog();
   } with Component[T] {
-    def getId() = {
-      resume(componentId)
+    def getQueryId() = {
+      resume(Some(componentId))
     }
     def iterRO(archId) = {
       resume { { prog } =>
-        val components = componentStore.unsafeGet(archId);
+        val components = componentStore.get(archId) match {
+          case Some(c) => c
+          case None() => {
+            do invalidArchID();
+            resizableArray(0)
+          }
+        };
         var index = 0;
         try {
           prog();
@@ -143,7 +128,13 @@ def component[T]() { prog: => Unit / {
     }
     def iterRW(archId) = {
       resume { { prog } =>
-        val components = componentStore.unsafeGet(archId);
+        val components = componentStore.get(archId) match {
+          case Some(c) => c
+          case None() => {
+            do invalidArchID();
+            resizableArray(0)
+          }
+        };
         var readIndex = 0;
         var writeIndex = 0;
         try {
@@ -206,12 +197,210 @@ def component[T]() { prog: => Unit / {
   }
 }
 
+def addComponentOption[T]() { prog: => Unit / Component[Option[T]] }: Unit / {
+  Component[T], EntityManager, nextComponentId, nextEntityId
+} = {
+  try {
+    prog();
+  } with Component[Option[T]] {
+    def getQueryId() = {
+      resume(None())
+    }
+    def iterRO(archId) = {
+      resume { { prog } =>
+        try {
+          with do iterRO[T](archId);
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume {
+              Some(do read())
+            }
+          }
+        } with invalidArchID {
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume {
+              None()
+            }
+          }
+        }
+      }
+    }
+    def iterRW(archId) = {
+      resume { { prog } =>
+        try {
+          with do iterRW[T](archId);
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume{
+              Some(do read())
+            }
+          } with emit[Option[T]] { value =>
+            value match {
+              case Some(v) => do emit(v)
+              case _ => ()
+            }
+            resume(())
+          }
+        } with invalidArchID {
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume{
+              None()
+            }
+          } with emit[Option[T]] { _ =>
+            resume(())
+          }
+        }
+      }
+    }
+    def addComponent(_, _) = {
+      panic("Cannot addComponent for Option Component!");
+    }
+    def removeSwapComponent(_, _) = {
+      panic("Cannot removeSwapComponent for Option Component!");
+    }
+    def getComponent(_, _) = {
+      panic("Cannot getComponent for Option Component!");
+    }
+    def setComponent(_, _, _) = {
+      panic("Cannot setComponent for Option Component!");
+    }
+  }
+}
+
+def addComponents[T]() { prog: => Unit / Components[T] }: Unit / {
+  Component[T], EntityManager, nextComponentId, nextEntityId
+} = {
+  with panicOnInvaildArchId();
+  val componentIds = [do getQueryId[T]() match {
+    case Some(id) => id
+    case None() => panic("internal error")
+  }];
+  try {
+    prog();
+  } with Components[T] {
+    def getQueryIds() = {
+      resume(componentIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        with do iterRO[T](archId);
+        prog();
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        with do iterRW[T](archId);
+        prog();
+      }
+    }
+    def addComponentTuple(archId, value) = {
+      resume(
+        do addComponent(archId, value)
+      )
+    }
+    def removeSwapComponentTuple(archId, index) = {
+      resume(
+        do removeSwapComponent[T](archId, index)
+      )
+    }
+  }
+}
+
+def addComponentsOption[T]() { prog: => Unit / Components[Option[T]] }: Unit / {
+  Component[T], EntityManager, nextComponentId, nextEntityId
+} = {
+  val optionIds = [];
+  try {
+    prog();
+  } with Components[Option[T]] {
+    def getQueryIds() = {
+      resume(optionIds)
+    }
+    def iterTuplesRO(archId) = {
+      resume { { prog } =>
+        try {
+          with do iterRO[T](archId);
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume {
+              Some(do read())
+            }
+          }
+        } with invalidArchID {
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume {
+              None()
+            }
+          }
+        }
+      }
+    }
+    def iterTuplesRW(archId) = {
+      resume { { prog } =>
+        try {
+          with do iterRW[T](archId);
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume{
+              Some(do read())
+            }
+          } with emit[Option[T]] { value =>
+            value match {
+              case Some(v) => do emit(v)
+              case _ => ()
+            }
+            resume(())
+          }
+        } with invalidArchID {
+          try {
+            prog();
+          } with read[Option[T]] {
+            resume{
+              None()
+            }
+          } with emit[Option[T]] { _ =>
+            resume(())
+          }
+        }
+      }
+    }
+    def addComponentTuple(_, _) = {
+      panic("Cannot addComponentTuple for Option Components!");
+    }
+    def removeSwapComponentTuple(_, _) = {
+      panic("Cannot removeSwapComponentTuple for Option Components!");
+    }
+  }
+}
+
+def component[T]() { prog: => Unit / {
+  Component[T], Component[Option[T]], Components[T], Components[Option[T]]
+} }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with addComponent[T]();
+  with addComponentOption[T]();
+  with addComponents[T]();
+  with addComponentsOption[T]();
+  prog();
+}
+
 def defaultComponents() { prog: => Unit / Components[Unit] }: Unit = {
   val componentIds = empty();
   try {
     prog();
   } with Components[Unit] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
@@ -238,13 +427,11 @@ def defaultComponents() { prog: => Unit / Components[Unit] }: Unit = {
         }
       }
     }
-    def addComponentTuple(archId, value) = {
-      println("addTuple for Unit Components makes no sense!");
-      resume(0)
+    def addComponentTuple(_, _) = {
+      panic("addTuple for Unit Components makes no sense!");
     }
-    def removeSwapComponentTuple(archId, index) = {
-      println("removeSwapTuple for Unit Components makes no sense!");
-      resume(None())
+    def removeSwapComponentTuple(_, _) = {
+      panic("removeSwapTuple for Unit Components makes no sense!");
     }
   }
 }
@@ -261,21 +448,22 @@ def zipComponents2[
   Component[A],
   Component[B]
 } = {
-  val componentIds = [
-    do getId[A](),
-    do getId[B]()
-  ].sort();
+  var componentIds = [];
+  componentIds = componentIds.addSome(do getQueryId[A]());
+  componentIds = componentIds.addSome(do getQueryId[B]());
+  componentIds = componentIds.sort();
   try {
     prog();
   } with Components[(
     A,
     B
   )] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRO[A](archId);
         with do iterRO[B](archId);
         try {
@@ -295,6 +483,7 @@ def zipComponents2[
     }
     def iterTuplesRW(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRW[A](archId);
         with do iterRW[B](archId);
         try {
@@ -361,11 +550,11 @@ def zipComponents3[
   Component[B],
   Component[C]
 } = {
-  val componentIds = [
-    do getId[A](),
-    do getId[B](),
-    do getId[C]()
-  ].sort();
+  var componentIds = [];
+  componentIds = componentIds.addSome(do getQueryId[A]());
+  componentIds = componentIds.addSome(do getQueryId[B]());
+  componentIds = componentIds.addSome(do getQueryId[C]());
+  componentIds = componentIds.sort();
   try {
     prog();
   } with Components[(
@@ -373,11 +562,12 @@ def zipComponents3[
     B,
     C
   )] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRO[A](archId);
         with do iterRO[B](archId);
         with do iterRO[C](archId);
@@ -400,6 +590,7 @@ def zipComponents3[
     }
     def iterTuplesRW(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRW[A](archId);
         with do iterRW[B](archId);
         with do iterRW[C](archId);
@@ -478,12 +669,12 @@ def zipComponents4[
   Component[C],
   Component[D]
 } = {
-  val componentIds = [
-    do getId[A](),
-    do getId[B](),
-    do getId[C](),
-    do getId[D]()
-  ].sort();
+  var componentIds = [];
+  componentIds = componentIds.addSome(do getQueryId[A]());
+  componentIds = componentIds.addSome(do getQueryId[B]());
+  componentIds = componentIds.addSome(do getQueryId[C]());
+  componentIds = componentIds.addSome(do getQueryId[D]());
+  componentIds = componentIds.sort();
   try {
     prog();
   } with Components[(
@@ -492,11 +683,12 @@ def zipComponents4[
     C,
     D
   )] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRO[A](archId);
         with do iterRO[B](archId);
         with do iterRO[C](archId);
@@ -522,6 +714,7 @@ def zipComponents4[
     }
     def iterTuplesRW(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRW[A](archId);
         with do iterRW[B](archId);
         with do iterRW[C](archId);
@@ -612,13 +805,13 @@ def zipComponents5[
   Component[D],
   Component[E]
 } = {
-  val componentIds = [
-    do getId[A](),
-    do getId[B](),
-    do getId[C](),
-    do getId[D](),
-    do getId[E]()
-  ].sort();
+  var componentIds = [];
+  componentIds = componentIds.addSome(do getQueryId[A]());
+  componentIds = componentIds.addSome(do getQueryId[B]());
+  componentIds = componentIds.addSome(do getQueryId[C]());
+  componentIds = componentIds.addSome(do getQueryId[D]());
+  componentIds = componentIds.addSome(do getQueryId[E]());
+  componentIds = componentIds.sort();
   try {
     prog();
   } with Components[(
@@ -628,11 +821,12 @@ def zipComponents5[
     D,
     E
   )] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRO[A](archId);
         with do iterRO[B](archId);
         with do iterRO[C](archId);
@@ -661,6 +855,7 @@ def zipComponents5[
     }
     def iterTuplesRW(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRW[A](archId);
         with do iterRW[B](archId);
         with do iterRW[C](archId);
@@ -763,14 +958,14 @@ def zipComponents6[
   Component[E],
   Component[F]
 } = {
-  val componentIds = [
-    do getId[A](),
-    do getId[B](),
-    do getId[C](),
-    do getId[D](),
-    do getId[E](),
-    do getId[F]()
-  ].sort();
+  var componentIds = [];
+  componentIds = componentIds.addSome(do getQueryId[A]());
+  componentIds = componentIds.addSome(do getQueryId[B]());
+  componentIds = componentIds.addSome(do getQueryId[C]());
+  componentIds = componentIds.addSome(do getQueryId[D]());
+  componentIds = componentIds.addSome(do getQueryId[E]());
+  componentIds = componentIds.addSome(do getQueryId[F]());
+  componentIds = componentIds.sort();
   try {
     prog();
   } with Components[(
@@ -781,11 +976,12 @@ def zipComponents6[
     E,
     F
   )] {
-    def getIds() = {
+    def getQueryIds() = {
       resume(componentIds)
     }
     def iterTuplesRO(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRO[A](archId);
         with do iterRO[B](archId);
         with do iterRO[C](archId);
@@ -817,6 +1013,7 @@ def zipComponents6[
     }
     def iterTuplesRW(archId) = {
       resume { { prog } =>
+        with panicOnInvaildArchId();
         with do iterRW[A](archId);
         with do iterRW[B](archId);
         with do iterRW[C](archId);
@@ -1084,7 +1281,7 @@ def entityIdManager() { prog: => Unit / nextEntityId }: Unit = {
 def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, nextEntityId } = {
   var entityDatas: Map[Entity, EntityData] = emptyMap();
   def setReservedEntity[T](entity: Entity, components: T) = {
-    val archId = do addEntity(do getIds[T](), entity);
+    val archId = do addEntity(do getQueryIds[T](), entity);
     val componentIndex = do addComponentTuple(archId, components);
     val entityData = EntityData(archId, componentIndex);
     entityDatas.update(entity, entityData);
@@ -1220,8 +1417,8 @@ def query[T, With, Without]()
 { prog: () { query: Query[T, With, Without] } => Unit }: Unit / {
   ArchManager, Components[T], Components[With], Components[Without]
 } = {
-  val componentIds = dedupMergeInt(do getIds[T](), do getIds[With]()); 
-  val withoutIds = do getIds[Without]();
+  val componentIds = dedupMergeInt(do getQueryIds[T](), do getQueryIds[With]()); 
+  val withoutIds = do getQueryIds[Without]();
   val archIds = ref(resizableArray(0));
   do addUpdateQuery(componentIds, withoutIds, archIds);
   try {
