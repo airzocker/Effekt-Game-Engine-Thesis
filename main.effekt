@@ -72,7 +72,7 @@ def main() = {
 
   with canvasRenderer();
 
-  with addSystem[Transform, Shape, Unit]() { { query } =>
+  with addSystem[Transform, Shape, Player]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * PI * 2.0 * 0.2;
     val rot = if (jsGetKey("ArrowRight")) {
