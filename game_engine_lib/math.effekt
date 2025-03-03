@@ -10,6 +10,10 @@ def zero(): Vector2 = {
   Vector2(0.0, 0.0)
 }
 
+def one(): Vector2 = {
+  Vector2(1.0, 1.0)
+}
+
 def setX(v: Vector2, d: Double): Vector2 = {
   Vector2(d, v.y)
 }

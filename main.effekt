@@ -49,10 +49,24 @@ def scoreSide(scores: Scores, side: Side): Scores = {
 }
 */
 
-def addTransform() { prog: => Unit / { Component[Transform], Components[Transform] } }: Unit / {
+def addPosition() { prog: => Unit / { Component[Position], Component[Option[Position]], Components[Position], Components[Option[Position]] } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
-  with component[Transform]();
+  with component[Position]();
+  prog();
+}
+
+def addRotation() { prog: => Unit / { Component[Rotation], Component[Option[Rotation]], Components[Rotation], Components[Option[Rotation]] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Rotation]();
+  prog();
+}
+
+def addScale() { prog: => Unit / { Component[Scale], Component[Option[Scale]], Components[Scale], Components[Option[Scale]] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Scale]();
   prog();
 }
 
@@ -66,13 +80,13 @@ def addShape() { prog: => Unit / { Component[Shape], Components[Shape] } }: Unit
 record Player()
 
 def main() = {
-  with world();
+  with engineWorld();
   
   with component[Player]();
 
   with canvasRenderer();
 
-  with addSystem[Transform, Shape, Player]() { { query } =>
+  with addSystem[Rotation, Shape, Player]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * PI * 2.0 * 0.2;
     val rot = if (jsGetKey("ArrowRight")) {
@@ -82,16 +96,12 @@ def main() = {
     } else {
       0.0
     };
-    query.foreachRW() { (entity, transform) =>
-      Transform(
-        transform.position,
-        limitRotation(transform.rotation + rot),
-        transform.scale
-      )
+    query.foreachRW() { (entity, rotation) =>
+      Rotation(limitRotation(rotation.value + rot))
     }
   };
 
-  with addSystem[Transform, Player, Unit]() { { query } =>
+  with addSystem[Position, Player, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * 4.0;
     val x = if (jsGetKey("ArrowRight")) {
@@ -109,53 +119,57 @@ def main() = {
       0.0
     };
     val change = Vector2(x, y);
-    query.foreachRW() { (entity, transform) =>
-      Transform(
-        transform.position + change,
-        transform.rotation,
-        transform.scale
-      )
+    query.foreachRW() { (entity, position) =>
+      Position(position.value + change)
     }
   };
 
-  do createEntity[(Transform, Shape)]((Transform(
-    zero(),
-    0.0,
-    Vector2(3.0, 1.5)
-  ), Rect(Color(255, 0, 255))));
-  do createEntity[(Transform, Shape)]((Transform(
-    Vector2(4.0, 2.0),
-    0.0,
-    Vector2(3.0, 1.5)
-  ), Circle(Color(255, 0, 255))));
-  do createEntity[(Transform, Shape)]((Transform(
-    Vector2(-4.0, 2.0),
-    0.0,
-    Vector2(1.0, 1.0)
-  ), Text(Color(255, 0, 255), "Test-text")));
-  do createEntity[(Transform, Shape)]((Transform(
-    Vector2(-4.0, -2.0),
-    0.0,
-    Vector2(1.333, 0.75)
-  ), Text(Color(255, 0, 255), "stretched")));
-  do createEntity[(Transform, Shape)]((Transform(
-    Vector2(4.0, -2.0),
-    0.0,
-    Vector2(0.75, 1.333)
-  ), Text(Color(255, 0, 255), "squished")));
-  
-  with zipComponents3[Transform, Shape, Player]();
-  do createEntity[(Transform, Shape, Player)]((Transform(
-    Vector2(0.0, -2.0),
-    0.0,
-    Vector2(0.4, 0.6)
-  ), Text(Color(20, 200, 150), "Player"), Player()));
+  with zipComponents4[Position, Rotation, Scale, Shape]();
+  do createEntity[(Position, Rotation, Scale, Shape)]((
+    default(),
+    default(),
+    Scale(Vector2(3.0, 1.5)),
+    Rect(Color(255, 0, 255))
+  ));
+  do createEntity[(Position, Rotation, Scale, Shape)]((
+    Position(Vector2(4.0, 2.0)),
+    default(),
+    Scale(Vector2(3.0, 1.5)),
+    Circle(Color(255, 0, 255))
+  ));
+  do createEntity[(Position, Rotation, Scale, Shape)]((
+    Position(Vector2(-4.0, 2.0)),
+    default(),
+    default(),
+    Text(Color(255, 0, 255), "Test-text")
+  ));
+  do createEntity[(Position, Rotation, Scale, Shape)]((
+    Position(Vector2(-4.0, -2.0)),
+    default(),
+    Scale(Vector2(1.333, 0.75)),
+    Text(Color(255, 0, 255), "stretched")
+  ));
+  do createEntity[(Position, Rotation, Scale, Shape)]((
+    Position(Vector2(4.0, -2.0)),
+    default(),
+    Scale(Vector2(0.75, 1.333)),
+    Text(Color(255, 0, 255), "squished")
+  ));
 
-  do setResource[Camera](Camera(CameraTransform(
+  with zipComponents5[Position, Rotation, Scale, Shape, Player]();
+  do createEntity[(Position, Rotation, Scale, Shape, Player)]((
+    Position(Vector2(0.0, -2.0)),
+    default(),
+    Scale(Vector2(0.4, 0.6)),
+    Text(Color(20, 200, 150), "Player"),
+    Player()
+  ));
+
+  do setResource[Camera](Camera(
     zero(),
     0.0,
-    16.0
-  )));
+    12.0
+  ));
 
   do runWorld();
   

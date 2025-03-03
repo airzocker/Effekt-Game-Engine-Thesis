@@ -72,6 +72,13 @@ interface System {
   def step(): Unit / EntityManager
 }
 
+interface World {
+  def stepWorld(): Unit / System
+  def runWorld(): Unit / System
+}
+
+record RunWorld(run: Bool)
+
 def panicOnInvaildArchId() { prog: => Unit / invalidArchID }: Unit = {
   try {
     prog();
@@ -552,7 +559,8 @@ def component[T]() { prog: => Unit / {
           }
         }
       }
-      def addComponent(_, _) = {
+      def addComponent(_, value) = {
+        inspect(value);
         panic("Cannot addComponent for Option Component!");
       }
       def removeSwapComponent(_, _) = {
@@ -1754,6 +1762,44 @@ def addSystem[T, With, Without]()
       resume {
         do step();
         body() { q };
+      }
+    }
+  }
+}
+
+def world() { prog: => Unit / {
+  nextComponentId, nextEntityId, ArchManager, EntityManager, Components[Unit], Resource[RunWorld], System, World
+} }: Unit = {
+  with componentIdManager();
+  with entityIdManager();
+  with archManager();
+  with entityManager();
+  with defaultComponents();
+  with createResource[RunWorld](RunWorld(true));
+  with defaultSystem();
+  def stepWorld() = {
+    do updateQueries();
+    systemEntityManager() {
+      do step();
+    };
+  }
+  try {
+    prog();
+  } with World {
+    def stepWorld() = {
+      resume {
+        stepWorld();
+      }
+    }
+    def runWorld() = {
+      resume {
+        loop { { l } =>
+          if (not((do getResource[RunWorld]()).run)) {
+            l.break();
+          }
+          await(promise(box { wait(0) } ));
+          stepWorld();
+        }
       }
     }
   }

@@ -7,13 +7,14 @@ import game_engine_lib/math
 import game_engine_lib/ecs
 import game_engine_lib/input
 
-record Transform(position: Vector2, rotation: Double, scale: Vector2)
+record Position(value: Vector2)
+record Rotation(value: Double)
+record Scale(value: Vector2)
 record Time(deltaTime: Double, gameTime: Double, frame: Int)
 
-interface World {
-  def stepWorld(): Unit / System
-  def runWorld(): Unit / System
-}
+def default(): Position = Position(zero())
+def default(): Rotation = Rotation(0.0)
+def default(): Scale = Scale(one())
 
 def limitRotation(rotation: Double): Double = {
   val twoPi = 2.0 * PI;
@@ -30,59 +31,39 @@ def uniformScale(scale: Double): Vector2 = {
   Vector2(scale, scale)
 }
 
-def world() { prog: => Unit / {
-  Resource[Time], Component[Transform],
-  Components[Unit], Components[Transform],
+def engineWorld() { prog: => Unit / {
+  Resource[Time],
+  Component[Position], Component[Rotation], Component[Scale],
+  Component[Option[Position]], Component[Option[Rotation]], Component[Option[Scale]],
+  Components[Position], Components[Rotation], Components[Scale],
+  Components[Option[Position]], Components[Option[Rotation]], Components[Option[Scale]],
+  Components[Unit], 
   nextComponentId, nextEntityId, ArchManager, EntityManager, System, World
 } }: Unit = {
-  with componentIdManager();
-  with entityIdManager();
-  with archManager();
-  with entityManager();
-  def stepWorld() = {
-    do updateQueries();
-    jsClearFrameInput();
-    systemEntityManager() {
-      do step();
-    };
-  }
-  try {
-    with defaultComponents();
-    with component[Transform]();
-    with defaultSystem();
-    with timeSystem();
-    jsInitInput();
-    prog();
-  } with World {
-    def stepWorld() = {
-      resume {
-        stepWorld();
-      }
-    }
-    def runWorld() = {
-      resume {
-        loop { { l } =>
-          if (jsGetKey("Escape")) {
-            l.break();
-          }
-          await(promise(box { wait(0) } ));
-          stepWorld();
-        }
-      }
-    }
-  }
+  jsInitInput();
+  with world();
+  with component[Position]();
+  with component[Rotation]();
+  with component[Scale]();
+  with defaultEngineSystem();
+  prog();
 }
 
-def timeSystem() { prog: => Unit / {
+def defaultEngineSystem() { prog: => Unit / {
   Resource[Time],
   System
 } }: Unit / {
+  Resource[RunWorld],
   Components[Unit],
   nextEntityId, System, ArchManager, EntityManager, World
 } = {
   with createResource[Time](updateTime(Time(0.0, 0.0, -1)));
   with addSystem[Unit, Unit, Unit]() { { _ } =>
     do setResource[Time](updateTime(do getResource[Time]()));
+    jsClearFrameInput();
+    if (jsGetKey("Escape")) {
+      do setResource[RunWorld](RunWorld(false));
+    }
   };
   prog();
 }
