@@ -405,103 +405,37 @@ def component[T]() { prog: => Unit / {
 } = {
   val componentId = do nextComponentId();
   var componentStore: Map[Int, ResizableArray[T]] = emptyMap();
-  val componentIds = [componentId];
-  val optionIds = [];
-  with panicOnInvaildArchId();
   try {
+    val componentIds = [componentId];
+    val optionIds = [];
+    with panicOnInvaildArchId();
     try {
-      try {
-        try {
+      prog();
+    } with Components[T] {
+      def getQueryIds() = {
+        resume(componentIds)
+      }
+      def iterTuplesRO(archId) = {
+        resume { { prog } =>
+          with do iterRO[T](archId);
           prog();
-        } with Components[Option[T]] {
-          def getQueryIds() = {
-            resume(optionIds)
-          }
-          def iterTuplesRO(archId) = {
-            resume { { prog } =>
-              try {
-                with do iterRO[T](archId);
-                try {
-                  prog();
-                } with read[Option[T]] {
-                  resume {
-                    Some(do read())
-                  }
-                }
-              } with invalidArchID {
-                try {
-                  prog();
-                } with read[Option[T]] {
-                  resume {
-                    None()
-                  }
-                }
-              }
-            }
-          }
-          def iterTuplesRW(archId) = {
-            resume { { prog } =>
-              try {
-                with do iterRW[T](archId);
-                try {
-                  prog();
-                } with read[Option[T]] {
-                  resume{
-                    Some(do read())
-                  }
-                } with emit[Option[T]] { value =>
-                  value match {
-                    case Some(v) => do emit(v)
-                    case _ => ()
-                  }
-                  resume(())
-                }
-              } with invalidArchID {
-                try {
-                  prog();
-                } with read[Option[T]] {
-                  resume{
-                    None()
-                  }
-                } with emit[Option[T]] { _ =>
-                  resume(())
-                }
-              }
-            }
-          }
-          def addComponentTuple(_, _) = {
-            panic("Cannot addComponentTuple for Option Components!");
-          }
-          def removeSwapComponentTuple(_, _) = {
-            panic("Cannot removeSwapComponentTuple for Option Components!");
-          }
         }
-      } with Components[T] {
-        def getQueryIds() = {
-          resume(componentIds)
+      }
+      def iterTuplesRW(archId) = {
+        resume { { prog } =>
+          with do iterRW[T](archId);
+          prog();
         }
-        def iterTuplesRO(archId) = {
-          resume { { prog } =>
-            with do iterRO[T](archId);
-            prog();
-          }
-        }
-        def iterTuplesRW(archId) = {
-          resume { { prog } =>
-            with do iterRW[T](archId);
-            prog();
-          }
-        }
-        def addComponentTuple(archId, value) = {
-          resume(
-            do addComponent(archId, value)
-          )
-        }
-        def removeSwapComponentTuple(archId, index) = {
-          resume(
-            do removeSwapComponent[T](archId, index)
-          )
-        }
+      }
+      def addComponentTuple(archId, value) = {
+        resume(
+          do addComponent(archId, value)
+        )
+      }
+      def removeSwapComponentTuple(archId, index) = {
+        resume(
+          do removeSwapComponent[T](archId, index)
+        )
       }
     } with Component[Option[T]] {
       def getQueryId() = {
@@ -571,6 +505,68 @@ def component[T]() { prog: => Unit / {
       }
       def setComponent(_, _, _) = {
         panic("Cannot setComponent for Option Component!");
+      }
+    } with Components[Option[T]] {
+      def getQueryIds() = {
+        resume(optionIds)
+      }
+      def iterTuplesRO(archId) = {
+        resume { { prog } =>
+          try {
+            with do iterRO[T](archId);
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                Some(do read())
+              }
+            }
+          } with invalidArchID {
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume {
+                None()
+              }
+            }
+          }
+        }
+      }
+      def iterTuplesRW(archId) = {
+        resume { { prog } =>
+          try {
+            with do iterRW[T](archId);
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume{
+                Some(do read())
+              }
+            } with emit[Option[T]] { value =>
+              value match {
+                case Some(v) => do emit(v)
+                case _ => ()
+              }
+              resume(())
+            }
+          } with invalidArchID {
+            try {
+              prog();
+            } with read[Option[T]] {
+              resume{
+                None()
+              }
+            } with emit[Option[T]] { _ =>
+              resume(())
+            }
+          }
+        }
+      }
+      def addComponentTuple(_, _) = {
+        panic("Cannot addComponentTuple for Option Components!");
+      }
+      def removeSwapComponentTuple(_, _) = {
+        panic("Cannot removeSwapComponentTuple for Option Components!");
       }
     }
   } with Component[T] {

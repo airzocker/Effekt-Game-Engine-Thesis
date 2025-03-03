@@ -131,6 +131,7 @@ def main() = {
     Scale(Vector2(3.0, 1.5)),
     Rect(Color(255, 0, 255))
   ));
+  /*
   do createEntity[(Position, Rotation, Scale, Shape)]((
     Position(Vector2(4.0, 2.0)),
     default(),
@@ -170,6 +171,7 @@ def main() = {
     0.0,
     12.0
   ));
+  */
 
   do runWorld();
   
