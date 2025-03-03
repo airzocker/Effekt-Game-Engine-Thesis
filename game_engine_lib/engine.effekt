@@ -31,8 +31,8 @@ def uniformScale(scale: Double): Vector2 = {
 }
 
 def world() { prog: => Unit / {
-  Resource[Time], Component[Transform],
-  Components[Unit], Components[Transform],
+  Resource[Time], Component[Transform], Component[Option[Transform]],
+  Components[Unit], Components[Transform], Components[Option[Transform]],
   nextComponentId, nextEntityId, ArchManager, EntityManager, System, World
 } }: Unit = {
   with componentIdManager();

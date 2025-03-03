@@ -49,19 +49,21 @@ def scoreSide(scores: Scores, side: Side): Scores = {
 }
 */
 
-def addTransform() { prog: => Unit / { Component[Transform], Components[Transform] } }: Unit / {
+def addTransform() { prog: => Unit / { Component[Transform], Component[Option[Transform]], Components[Transform], Components[Option[Transform]] } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
   with component[Transform]();
   prog();
 }
 
+/*
 def addShape() { prog: => Unit / { Component[Shape], Components[Shape] } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
   with component[Shape]();
   prog();
 }
+*/
 
 record Player()
 
@@ -70,6 +72,12 @@ def main() = {
   
   with component[Player]();
 
+  with zipComponents2[Player, Option[Transform]]();
+  with addSystem[(Player, Option[Transform]), Unit, Unit]() { { query } =>
+    ()
+  };
+
+  /*
   with canvasRenderer();
 
   with addSystem[Transform, Shape, Player]() { { query } =>
@@ -117,7 +125,15 @@ def main() = {
       )
     }
   };
+  */
+  
+  do createEntity[Transform](Transform(
+    zero(),
+    0.0,
+    Vector2(3.0, 1.5)
+  ));
 
+  /*
   do createEntity[(Transform, Shape)]((Transform(
     zero(),
     0.0,
@@ -156,8 +172,9 @@ def main() = {
     0.0,
     16.0
   )));
+  */
 
-  do runWorld();
+  //do runWorld();
   
   /*
   val playAreaSize = Vector2Int(getCanvasHeight(), getCanvasHeight());
