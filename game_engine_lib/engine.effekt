@@ -7,8 +7,14 @@ import game_engine_lib/math
 import game_engine_lib/ecs
 import game_engine_lib/input
 
-record Transform(position: Vector2, rotation: Double, scale: Vector2)
+record Position(value: Vector2)
+record Rotation(value: Double)
+record Scale(value: Vector2)
 record Time(deltaTime: Double, gameTime: Double, frame: Int)
+
+def default(): Position = Position(zero())
+def default(): Rotation = Rotation(0.0)
+def default(): Scale = Scale(one())
 
 interface World {
   def stepWorld(): Unit / System
@@ -31,8 +37,12 @@ def uniformScale(scale: Double): Vector2 = {
 }
 
 def world() { prog: => Unit / {
-  Resource[Time], Component[Transform], Component[Option[Transform]],
-  Components[Unit], Components[Transform], Components[Option[Transform]],
+  Resource[Time],
+  //Component[Position], Component[Rotation], Component[Scale],
+  //Component[Option[Position]], Component[Option[Rotation]], Component[Option[Scale]],
+  //Components[Position], Components[Rotation], Components[Scale],
+  //Components[Option[Position]], Components[Option[Rotation]], Components[Option[Scale]],
+  Components[Unit],
   nextComponentId, nextEntityId, ArchManager, EntityManager, System, World
 } }: Unit = {
   with componentIdManager();
@@ -48,7 +58,9 @@ def world() { prog: => Unit / {
   }
   try {
     with defaultComponents();
-    with component[Transform]();
+    //with component[Position]();
+    //with component[Rotation]();
+    //with component[Scale]();
     with defaultSystem();
     with timeSystem();
     jsInitInput();

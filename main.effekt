@@ -47,7 +47,6 @@ def scoreSide(scores: Scores, side: Side): Scores = {
     case Right() => Scores(scores.left, scores.right + 1)
   }
 }
-*/
 
 def addTransform() { prog: => Unit / { Component[Transform], Component[Option[Transform]], Components[Transform], Components[Option[Transform]] } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
@@ -55,6 +54,30 @@ def addTransform() { prog: => Unit / { Component[Transform], Component[Option[Tr
   with component[Transform]();
   prog();
 }
+*/
+
+/*
+def addPosition() { prog: => Unit / { Component[Position], Components[Position] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Position]();
+  prog();
+}
+
+def addRotation() { prog: => Unit / { Component[Rotation], Components[Rotation] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Rotation]();
+  prog();
+}
+
+def addScale() { prog: => Unit / { Component[Scale], Components[Scale] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Scale]();
+  prog();
+}
+*/
 
 /*
 def addShape() { prog: => Unit / { Component[Shape], Components[Shape] } }: Unit / {
@@ -63,23 +86,29 @@ def addShape() { prog: => Unit / { Component[Shape], Components[Shape] } }: Unit
   with component[Shape]();
   prog();
 }
-*/
 
 record Player()
+*/
+
+/*
+def addShape() { prog: => Unit / { Component[Shape], Components[Shape] } }: Unit / {
+  EntityManager, nextComponentId, nextEntityId
+} = {
+  with component[Shape]();
+  prog();
+}
+
+record Player()
+*/
 
 def main() = {
   with world();
   
-  with component[Player]();
-
-  with zipComponents2[Player, Option[Transform]]();
-  with addSystem[(Player, Option[Transform]), Unit, Unit]() { { query } =>
-    ()
-  };
+  //with component[Player]();
+  
+  //with canvasRenderer();
 
   /*
-  with canvasRenderer();
-
   with addSystem[Transform, Shape, Player]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * PI * 2.0 * 0.2;
@@ -127,11 +156,19 @@ def main() = {
   };
   */
   
-  do createEntity[Transform](Transform(
-    zero(),
-    0.0,
-    Vector2(3.0, 1.5)
+  /*
+  with zipComponents3[Position, Rotation, Scale]();
+  do createEntity[(Position, Rotation, Scale)]((
+    default(),
+    default(),
+    Scale(Vector2(3.0, 1.5))
   ));
+  */
+
+  with component[Position]();
+  do createEntity[Position](
+    default()
+  )
 
   /*
   do createEntity[(Transform, Shape)]((Transform(

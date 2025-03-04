@@ -12,17 +12,21 @@ type Shape {
   Rect(color: Color);
   Text(color: Color, text: String);
 }
-record CameraTransform(position: Vector2, rotation: Double, height: Double)
-record Camera(cameraTransform: CameraTransform)
+record Camera(position: Vector2, rotation: Double, height: Double)
 record WindowProperties(size: Vector2Int)
 
 def canvasRenderer() { prog: => Unit / {
-  Resource[Camera], Resource[WindowProperties], Component[Shape],
+  Resource[Camera], Resource[WindowProperties],
+  Component[Shape],
+  //Component[Option[Shape]],
   Components[Shape],
-  Components[(Transform, Shape)],
+  //Components[Option[Shape]],
+  //Components[(Position, Option[Rotation], Option[Scale], Shape)],
   System
 } }: Unit / {
-  Component[Transform],
+  Component[Position],
+  Component[Option[Rotation]],
+  Component[Option[Scale]],
   Components[Unit],
   nextEntityId, nextComponentId, System, ArchManager, EntityManager
 } = {
@@ -30,23 +34,25 @@ def canvasRenderer() { prog: => Unit / {
   jsInitCanvas();
   with component[Shape]();
   with createResource[WindowProperties](getWindowProperties());
-  with createResource[Camera](Camera(CameraTransform(
+  with createResource[Camera](Camera(
     zero(),
     0.0,
     10.0
-  )));
-  with zipComponents2[Transform, Shape]();
-  with addSystem[(Transform, Shape), Unit, Unit]() { { query } =>
+  ));
+  with zipComponents4[Position, Option[Rotation], Option[Scale], Shape]();
+  with addSystem[(Position, Option[Rotation], Option[Scale], Shape), Unit, Unit]() { { query } =>
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
-    setCameraTransform(context, (do getResource[Camera]()).cameraTransform);
+    setCameraTransform(context, do getResource[Camera]());
     query.foreachRO() { (entity, values) =>
       values match {
-        case (transform, shape) => {
+        case (position, optRotation, optScale, shape) => {
+          val rotation = optRotation.getOrElse() { default() };
+          val scale = optScale.getOrElse() { default() };
           jsSave(context);
-          setTransform(context, transform);
+          setTransform(context, position.value, rotation.value, scale.value);
           drawShape(context, shape);
           jsRestore(context);
         }
@@ -61,17 +67,17 @@ def getWindowProperties(): WindowProperties = {
   WindowProperties(Vector2Int(jsGetCanvasWidth(), jsGetCanvasHeight()))
 }
 
-def setTransform(context: CanvasRenderingContext2D, transform: Transform): Unit = {
-  jsTranslate(context, transform.position.x, 0.0 - transform.position.y);
-  jsRotate(context, transform.rotation);
-  jsScale(context, transform.scale.x, transform.scale.y);
+def setTransform(context: CanvasRenderingContext2D, position: Vector2, rotation: Double, scale: Vector2): Unit = {
+  jsTranslate(context, position.x, 0.0 - position.y);
+  jsRotate(context, rotation);
+  jsScale(context, scale.x, scale.y);
 }
 
-def setCameraTransform(context: CanvasRenderingContext2D, transform: CameraTransform): Unit = {
-  jsRotate(context, 0.0 - transform.rotation);
+def setCameraTransform(context: CanvasRenderingContext2D, camera: Camera): Unit = {
+  jsRotate(context, 0.0 - camera.rotation);
   val screenScale = jsGetCanvasHeight().toDouble();
-  jsScale(context, screenScale / transform.height, screenScale / transform.height);
-  jsTranslate(context, 0.0 - transform.position.x, transform.position.y);
+  jsScale(context, screenScale / camera.height, screenScale / camera.height);
+  jsTranslate(context, 0.0 - camera.position.x, camera.position.y);
 }
 
 def drawShape(context: CanvasRenderingContext2D, shape: Shape): Unit = {

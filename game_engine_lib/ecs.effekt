@@ -392,7 +392,8 @@ def component[T]() { prog: => Unit / {
 */
 
 def component[T]() { prog: => Unit / {
-  Component[T], Components[T], Component[Option[T]], Components[Option[T]]
+  // Comment in the following comment for change
+  Component[T], Components[T], Component[Option[T]]//, Components[Option[T]]
 } }: Unit / {
   EntityManager, nextComponentId, nextEntityId
 } = {
@@ -462,7 +463,8 @@ def component[T]() { prog: => Unit / {
               }
             }
           }
-          def addComponentTuple(_, _) = {
+          def addComponentTuple(_, value) = {
+            inspect(value);
             panic("Cannot addComponentTuple for Option Components!");
           }
           def removeSwapComponentTuple(_, _) = {

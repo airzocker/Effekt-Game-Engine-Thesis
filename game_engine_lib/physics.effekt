@@ -16,6 +16,7 @@ record Rigidbody(lastPos: Vector2)
 // Trigger only works for uniform scaled circles or AABBs for now
 record Trigger()
 
+/*
 def physicsEngine() { prog: => Unit / {
   Resource[Gravity], Component[Velocity], Component[Collider], Component[Rigidbody], Component[Trigger],
   Components[Velocity], Components[Collider], Components[Rigidbody], Components[Trigger],
@@ -70,3 +71,4 @@ def physicsEngine() { prog: => Unit / {
   // TODO: physics calcs
   prog();
 }
+*/
