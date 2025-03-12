@@ -14,6 +14,10 @@ def one(): Vector2 = {
   Vector2(1.0, 1.0)
 }
 
+def uniformScale(scale: Double): Vector2 = {
+  Vector2(scale, scale)
+}
+
 def setX(v: Vector2, d: Double): Vector2 = {
   Vector2(d, v.y)
 }
@@ -51,8 +55,12 @@ def infixDiv(v: Vector2, d: Double): Vector2 = {
   Vector2(v.x / d, v.y / d)
 }
 
+def lengthSq(v: Vector2): Double = {
+  v.x * v.x + v.y * v.y
+}
+
 def length(v: Vector2): Double = {
-  sqrt(v.x * v.x + v.y * v.y)
+  sqrt(v.lengthSq())
 }
 
 def normalize(v: Vector2): Vector2 = {

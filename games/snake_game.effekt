@@ -1,0 +1,177 @@
+module snake_game
+
+import game_engine_lib/math
+import game_engine_lib/core
+import game_engine_lib/ecs
+import game_engine_lib/engine
+import game_engine_lib/canvas_renderer
+import game_engine_lib/input
+
+// Components
+record Background()
+record MoveDir(next: Vector2Int, last: Vector2Int)
+record NextTail(value: Entity)
+record LastPosition(value: Vector2)
+
+// Resouces
+record MoveTimer(moveTimer: Double, doMove: Bool)
+record Head(value: Entity)
+record LastTail(value: Entity)
+
+def snakeGame() = {
+  // Color constants
+  val backgroundColor = Color(120, 150, 50);
+  val headColor = Color(50, 50, 200);
+  val tailColor = Color(80, 120, 60);
+  val appleColor = Color(200, 80, 50);
+
+  // Game constants
+  val gridSize = 50;
+  val gridOffset = 0.5 - gridSize.toDouble() * 0.5;
+  val moveTime = 0.1;
+  val startPos = Vector2(
+    (gridSize / 2).toDouble() + gridOffset,
+    (gridSize / 2).toDouble() + gridOffset
+  );
+  val startDir = Vector2Int(0, 1);
+
+  // ECS & Engine init
+  with engineWorld();
+  with canvasRenderer();
+
+  // Our components
+  with component[Background]();
+  with component[MoveDir]();
+  with component[NextTail]();
+  with component[LastPosition]();
+  
+  // Our resources
+  with createResource[MoveTimer](MoveTimer(moveTime, false));
+  with createResource[Head](Head(Entity(0)));
+  with createResource[LastTail](LastTail(Entity(0)));
+
+  // Needed component tuples
+  with zipComponents2[Position, MoveDir]();
+  with zipComponents2[Position, NextTail]();
+  with zipComponents2[Position, LastPosition]();
+  with zipComponents3[Position, Scale, Shape]();
+  with zipComponents4[Position, LastPosition, Shape, MoveDir]();
+
+  // Update game dimensions from window size
+  with addSystem[Unit, Unit, Unit]() { { _ } =>
+    val windowSize = (do getResource[WindowProperties]()).size;
+    var camHeight = gridSize.toDouble();
+    if (windowSize.x < windowSize.y) {
+      camHeight = gridSize.toDouble() * (windowSize.y.toDouble() / windowSize.x.toDouble());      
+    }
+    do setResource[Camera](Camera(
+      zero(),
+      0.0,
+      camHeight
+    ));
+    ()
+  };
+
+  // Update move timer
+  with addSystem[Unit, Unit, Unit]() { { _ } =>
+    val deltaTime = (do getResource[Time]()).deltaTime;
+    var moveTimer = (do getResource[MoveTimer]()).moveTimer - deltaTime;
+    val doMove = moveTimer <= 0.0;
+    if (doMove) {
+      moveTimer = moveTimer + moveTime;
+    }
+    do setResource[MoveTimer](MoveTimer(moveTimer, doMove));
+    ()
+  };
+
+  // Update head
+  with addSystem[(Position, MoveDir), Unit, Unit]() { { query } =>
+    val doMove = (do getResource[MoveTimer]()).doMove;
+    query.foreachRW() { (entity, values) =>
+      values match {
+        case (position, moveDir) => {
+          var newMoveDir = moveDir.next;
+          if (jsGetKeyDown("ArrowUp") && moveDir.last.y == 0) {
+            newMoveDir = Vector2Int(0, 1)
+          } else if (jsGetKeyDown("ArrowDown") && moveDir.last.y == 0) {
+            newMoveDir = Vector2Int(0, -1)
+          } else if (jsGetKeyDown("ArrowRight") && moveDir.last.x == 0) {
+            newMoveDir = Vector2Int(1, 0)
+          } else if (jsGetKeyDown("ArrowLeft") && moveDir.last.x == 0) {
+            newMoveDir = Vector2Int(-1, 0)
+          }
+          val newLastMoveDir = if (doMove) {
+            newMoveDir
+          } else {
+            moveDir.last
+          };
+          val newPosition = if (doMove) {
+            Position(Vector2(
+              (position.value.x.round() + newMoveDir.x).toDouble(),
+              (position.value.y.round() + newMoveDir.y).toDouble()
+            ))
+          } else {
+            position
+          };
+          (
+            newPosition,
+            MoveDir(newMoveDir, newLastMoveDir)
+          )
+        }
+      }
+    }
+    ()
+  };
+
+  // Update tail
+  with addSystem[(Position, NextTail), Unit, Unit]() { { query } =>
+    val doMove = (do getResource[MoveTimer]()).doMove;
+    if (doMove) {
+      query.foreachRW() { (entity, values) =>
+        values match {
+          case (position, nextTail) => {
+            val newPosition = (do getComponent[LastPosition](nextTail.value)).value;
+            (Position(newPosition), nextTail)
+          }
+        }
+      }
+    }
+    ()
+  };
+
+  // Update LastPosition from Position
+  with addSystem[(Position, LastPosition), Unit, Unit]() { { query } =>
+    val doMove = (do getResource[MoveTimer]()).doMove;
+    if (doMove) {
+      query.foreachRW() { (entity, values) =>
+        values match {
+          case (position, lastPosition) => {
+            (position, LastPosition(position.value))
+          }
+        }
+      }
+    }
+    ()
+  };
+
+  // Background
+  do createEntity[(Position, Scale, Shape)]((
+    default(),
+    Scale(Vector2(gridSize.toDouble(), gridSize.toDouble())),
+    Rect(backgroundColor)
+  ));
+
+  // Head
+  val head = do createEntity[(Position, LastPosition, Shape, MoveDir)]((
+    Position(startPos),
+    LastPosition(startPos),
+    Rect(headColor),
+    MoveDir(startDir, startDir)
+  ));
+  do setResource[Head](Head(head));
+  do setResource[LastTail](LastTail(head));
+
+  do runWorld();
+
+  ()
+}

@@ -18,8 +18,11 @@ extern io def jsGetKeyUp(keyCode: String): Bool =
 extern js """
 
 const keySet = new Set();
-const keyDownSet = new Set();
-const keyUpSet = new Set();
+
+let keyDownSetIn = new Set();
+let keyDownSetOut = new Set();
+let keyUpSetIn = new Set();
+let keyUpSetOut = new Set();
 
 function initInput() {
   window.addEventListener('keydown', onKeyDown, true);
@@ -28,17 +31,23 @@ function initInput() {
 
 function onKeyDown(event) {
   keySet.add(event.code);
-  keyDownSet.add(event.code);
+  keyDownSetIn.add(event.code);
 }
 
 function onKeyUp(event) {
   keySet.delete(event.code);
-  keyUpSet.add(event.code);
+  keyUpSetIn.add(event.code);
 }
 
 function clearFrameInput() {
-  keyDownSet.clear();
-  keyUpSet.clear();
+  keyDownSetOut.clear();
+  keyUpSetOut.clear();
+  let tmp = keyDownSetIn;
+  keyDownSetIn = keyDownSetOut;
+  keyDownSetOut = tmp;
+  tmp = keyUpSetIn;
+  keyUpSetIn = keyUpSetOut;
+  keyUpSetOut = tmp;
 }
 
 function getKey(keyCode) {
@@ -46,11 +55,11 @@ function getKey(keyCode) {
 }
 
 function getKeyDown(keyCode) {
-  return keyDownSet.has(keyCode);
+  return keyDownSetOut.has(keyCode);
 }
 
 function getKeyUp(keyCode) {
-  return keyUpSet.has(keyCode);
+  return keyUpSetOut.has(keyCode);
 }
 
 """
