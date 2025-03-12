@@ -10,8 +10,8 @@ import game_engine_lib/input
 // Components
 record Background()
 record MoveDir(next: Vector2Int, last: Vector2Int)
-record NextTail(value: Entity)
 record LastPosition(value: Vector2)
+record NextTail(value: Entity)
 
 // Resouces
 record MoveTimer(moveTimer: Double, doMove: Bool)
@@ -30,8 +30,8 @@ def snakeGame() = {
   val gridOffset = 0.5 - gridSize.toDouble() * 0.5;
   val moveTime = 0.1;
   val startPos = Vector2(
-    (gridSize / 2).toDouble() + gridOffset,
-    (gridSize / 2).toDouble() + gridOffset
+    (gridSize / 2).toDouble(),
+    (gridSize / 2).toDouble()
   );
   val startDir = Vector2Int(0, 1);
 
@@ -42,8 +42,8 @@ def snakeGame() = {
   // Our components
   with component[Background]();
   with component[MoveDir]();
-  with component[NextTail]();
   with component[LastPosition]();
+  with component[NextTail]();
   
   // Our resources
   with createResource[MoveTimer](MoveTimer(moveTime, false));
@@ -65,7 +65,7 @@ def snakeGame() = {
       camHeight = gridSize.toDouble() * (windowSize.y.toDouble() / windowSize.x.toDouble());      
     }
     do setResource[Camera](Camera(
-      zero(),
+      Vector2(0.0 - gridOffset, 0.0 - gridOffset),
       0.0,
       camHeight
     ));
@@ -156,7 +156,7 @@ def snakeGame() = {
 
   // Background
   do createEntity[(Position, Scale, Shape)]((
-    default(),
+    Position(uniform(0.0 - gridOffset)),
     Scale(Vector2(gridSize.toDouble(), gridSize.toDouble())),
     Rect(backgroundColor)
   ));
