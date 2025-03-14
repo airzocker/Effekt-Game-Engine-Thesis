@@ -29,6 +29,7 @@ def snakeGame() = {
   val gridSize = 50;
   val gridOffset = 0.5 - gridSize.toDouble() * 0.5;
   val moveTime = 0.1;
+  //val startPos = uniform((gridSize / 2).toDouble());
   val startPos = Vector2(
     (gridSize / 2).toDouble(),
     (gridSize / 2).toDouble()
@@ -156,7 +157,8 @@ def snakeGame() = {
 
   // Background
   do createEntity[(Position, Scale, Shape)]((
-    Position(uniform(0.0 - gridOffset)),
+    //Position(uniform(0.0 - gridOffset)),
+    Position(Vector2(0.0 - gridOffset, 0.0 - gridOffset)),
     Scale(Vector2(gridSize.toDouble(), gridSize.toDouble())),
     Rect(backgroundColor)
   ));
