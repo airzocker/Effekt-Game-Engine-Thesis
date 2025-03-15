@@ -10,7 +10,14 @@ import game_engine_lib/input
 record Position(value: Vector2)
 record Rotation(value: Double)
 record Scale(value: Vector2)
-record Time(deltaTime: Double, gameTime: Double, frame: Int)
+record Time(
+  deltaTime: Double,
+  gameTime: Double,
+  unscaledDeltaTime: Double,
+  unscaledGameTime: Double,
+  frame: Int
+)
+record TimeScale(value: Double)
 
 def default(): Position = Position(zero())
 def default(): Rotation = Rotation(0.0)
@@ -28,7 +35,7 @@ def limitRotation(rotation: Double): Double = {
 }
 
 def engineWorld() { prog: => Unit / {
-  Resource[Time],
+  Resource[Time], Resource[TimeScale],
   Component[Position], Component[Rotation], Component[Scale],
   Component[Option[Position]], Component[Option[Rotation]], Component[Option[Scale]],
   Components[Position], Components[Rotation], Components[Scale],
@@ -46,16 +53,19 @@ def engineWorld() { prog: => Unit / {
 }
 
 def defaultEngineSystem() { prog: => Unit / {
-  Resource[Time],
+  Resource[Time], Resource[TimeScale],
   System
 } }: Unit / {
   Resource[RunWorld],
   Components[Unit],
   System, ArchManager, EntityManager, World
 } = {
-  with createResource[Time](updateTime(Time(0.0, 0.0, -1)));
+  val timeScale = TimeScale(1.0);
+  val time = updateTime(Time(0.0, 0.0, 0.0, 0.0, -1), timeScale);
+  with createResource[TimeScale](timeScale);
+  with createResource[Time](time);
   with addSystem[Unit, Unit, Unit]() { { _ } =>
-    do setResource[Time](updateTime(do getResource[Time]()));
+    do setResource[Time](updateTime(do getResource[Time](), do getResource[TimeScale]()));
     jsClearFrameInput();
     if (jsGetKey("Escape")) {
       do setResource[RunWorld](RunWorld(false));
@@ -64,9 +74,17 @@ def defaultEngineSystem() { prog: => Unit / {
   prog();
 }
 
-def updateTime(time: Time): Time = {
+def updateTime(time: Time, timeScale: TimeScale): Time = {
   val now = jsGetTime();
-  Time(now - time.gameTime, now, time.frame + 1)
+  val deltaTime = now - time.unscaledGameTime;
+  val scaledDeltaTime = deltaTime * timeScale.value;
+  Time(
+    scaledDeltaTime,
+    time.gameTime + scaledDeltaTime,
+    deltaTime,
+    time.unscaledGameTime + deltaTime,
+    time.frame + 1
+  )
 }
 
 extern pure def jsGetTime(): Double =
