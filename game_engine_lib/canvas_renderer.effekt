@@ -28,7 +28,7 @@ def canvasRenderer() { prog: => Unit / {
   Component[Option[Rotation]],
   Component[Option[Scale]],
   Components[Unit],
-  nextEntityId, nextComponentId, System, ArchManager, EntityManager
+  ComponentManager, System, ArchManager, EntityManager
 } = {
   val context = jsGetContext();
   jsInitCanvas();

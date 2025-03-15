@@ -34,7 +34,7 @@ def engineWorld() { prog: => Unit / {
   Components[Position], Components[Rotation], Components[Scale],
   Components[Option[Position]], Components[Option[Rotation]], Components[Option[Scale]],
   Components[Unit], 
-  nextComponentId, nextEntityId, ArchManager, EntityManager, System, World
+  ComponentManager, ArchManager, EntityManager, System, World
 } }: Unit = {
   jsInitInput();
   with world();
@@ -51,7 +51,7 @@ def defaultEngineSystem() { prog: => Unit / {
 } }: Unit / {
   Resource[RunWorld],
   Components[Unit],
-  nextEntityId, System, ArchManager, EntityManager, World
+  System, ArchManager, EntityManager, World
 } = {
   with createResource[Time](updateTime(Time(0.0, 0.0, -1)));
   with addSystem[Unit, Unit, Unit]() { { _ } =>

@@ -28,7 +28,7 @@ def physicsEngine() { prog: => Unit / {
 } }: Unit / {
   Resource[Time], Component[Position], Component[Rotation], Component[Scale],
   Components[Unit],
-  nextEntityId, nextComponentId, System, ArchManager, EntityManager
+  ComponentManager, System, ArchManager, EntityManager
 } = {
   with component[Velocity]();
   with component[AngularVelocity]();

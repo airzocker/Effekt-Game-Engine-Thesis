@@ -37,6 +37,10 @@ def setY(v: Vector2, d: Double): Vector2 = {
   Vector2(v.x, d)
 }
 
+def infixEq(v1: Vector2, v2: Vector2): Bool = {
+  v1.x == v2.x && v1.y == v1.y
+}
+
 def infixAdd(v1: Vector2, v2: Vector2): Vector2 = {
   Vector2(v1.x + v2.x, v1.y + v2.y)
 }
@@ -134,6 +138,10 @@ def setY(v: Vector2Int, d: Int): Vector2Int = {
 
 def toVector2(v: Vector2Int): Vector2 = {
   Vector2(v.x.toDouble(), v.y.toDouble())
+}
+
+def infixEq(v1: Vector2Int, v2: Vector2Int): Bool = {
+  v1.x == v2.x && v1.y == v1.y
 }
 
 def infixAdd(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
