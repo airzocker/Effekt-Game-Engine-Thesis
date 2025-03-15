@@ -32,6 +32,7 @@ interface Component[T] {
 }
 
 interface Components[T] {
+  def getComponentCount(): Int
   def getQueryIds(): List[Int]
   def iterTuplesRO(archId: Int) { prog: => Unit / read[T] }: Unit / stop
   def iterTuplesRW(archId: Int) { prog: => Unit / { read[T], emit[T] } }: Unit / stop
@@ -219,6 +220,9 @@ def addComponentsT[T]() { prog: => Unit / Components[T] }: Unit / {
   try {
     prog();
   } with Components[T] {
+    def getComponentCount() = {
+      resume(1)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -318,6 +322,9 @@ def addComponentsOptionT[T]() { prog: => Unit / Components[Option[T]] }: Unit / 
   try {
     prog();
   } with Components[Option[T]] {
+    def getComponentCount() = {
+      resume(1)
+    }
     def getQueryIds() = {
       resume(optionIds)
     }
@@ -406,6 +413,9 @@ def component[T]() { prog: => Unit / {
     try {
       prog();
     } with Components[T] {
+      def getComponentCount() = {
+        resume(1)
+      }
       def getQueryIds() = {
         resume(componentIds)
       }
@@ -493,6 +503,9 @@ def component[T]() { prog: => Unit / {
         panic("Cannot setComponent for Option Component!");
       }
     } with Components[Option[T]] {
+      def getComponentCount() = {
+        resume(1)
+      }
       def getQueryIds() = {
         resume(optionIds)
       }
@@ -649,6 +662,9 @@ def defaultComponents() { prog: => Unit / Components[Unit] }: Unit = {
   try {
     prog();
   } with Components[Unit] {
+    def getComponentCount() = {
+      resume(0)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -703,6 +719,9 @@ def zipComponents2[
     A,
     B
   )] {
+    def getComponentCount() = {
+      resume(2)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -800,6 +819,9 @@ def zipComponents3[
     B,
     C
   )] {
+    def getComponentCount() = {
+      resume(3)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -913,6 +935,9 @@ def zipComponents4[
     C,
     D
   )] {
+    def getComponentCount() = {
+      resume(4)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -1042,6 +1067,9 @@ def zipComponents5[
     D,
     E
   )] {
+    def getComponentCount() = {
+      resume(5)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -1187,6 +1215,9 @@ def zipComponents6[
     E,
     F
   )] {
+    def getComponentCount() = {
+      resume(6)
+    }
     def getQueryIds() = {
       resume(componentIds)
     }
@@ -1486,6 +1517,9 @@ def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
     lastEntityId
   }
   def setReservedEntity[T](entity: Entity, components: T): Unit / Components[T] = {
+    if (do getComponentCount[T]() != (do getQueryIds[T]()).size()) {
+      panic("Cannot create entity with Option[T] components!");
+    }
     val archId = do addEntity(do getQueryIds[T](), entity);
     val componentIndex = do addComponentTuple(archId, components);
     val entityData = EntityData(archId, componentIndex);
