@@ -145,9 +145,22 @@ extern io def jsRestore(context: CanvasRenderingContext2D): Unit =
 
 extern js """
 
-const canvas = document.getElementById('myCanvas');
+let canvas = null;
 
 function initCanvas() {
+  document.head.innerHTML += `
+    <style>
+    html, body, canvas { padding: 0; margin: 0; }
+    canvas { display:block; }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effekt Game Engine</title>
+  `;
+  document.body.innerHTML += `
+    <canvas id="myCanvas" width="640" height="360"></canvas>
+  `;
+  canvas = document.getElementById('myCanvas');
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 }
