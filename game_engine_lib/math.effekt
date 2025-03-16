@@ -38,7 +38,11 @@ def setY(v: Vector2, d: Double): Vector2 = {
 }
 
 def infixEq(v1: Vector2, v2: Vector2): Bool = {
-  v1.x == v2.x && v1.y == v1.y
+  v1.x == v2.x && v1.y == v2.y
+}
+
+def infixNeq(v1: Vector2, v2: Vector2): Bool = {
+  not(v1 == v2)
 }
 
 def infixAdd(v1: Vector2, v2: Vector2): Vector2 = {
@@ -141,7 +145,11 @@ def toVector2(v: Vector2Int): Vector2 = {
 }
 
 def infixEq(v1: Vector2Int, v2: Vector2Int): Bool = {
-  v1.x == v2.x && v1.y == v1.y
+  v1.x == v2.x && v1.y == v2.y
+}
+
+def infixNeq(v1: Vector2Int, v2: Vector2Int): Bool = {
+  not(v1 == v2)
 }
 
 def infixAdd(v1: Vector2Int, v2: Vector2Int): Vector2Int = {
@@ -197,3 +205,11 @@ def ceil(v: Vector2): Vector2Int = {
 def floor(v: Vector2): Vector2Int = {
   Vector2Int(floor(v.x), floor(v.y))
 }
+
+// Random Double [0, 1)
+extern pure def jsRandom(): Double =
+  js "Math.random()"
+
+// Random Int [min, max)
+extern pure def jsRandomInt(min: Int, max: Int): Int =
+  js "Math.floor(Math.random() * (${max} - ${min})) + ${min}"

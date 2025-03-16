@@ -42,7 +42,7 @@ def physicsEngine() { prog: => Unit / {
   with zipComponents2[Rotation, AngularVelocity]();
   // Save last position on rigidbodies
   with addSystem[(Position, Rigidbody), Unit, Unit]() { { query } =>
-    query.foreachRW() { (entity, values) =>
+    query.foreachRW() { (_, values) =>
       values match {
         case (position, rigidbody) => {
           (position, Rigidbody(position.value))
@@ -55,7 +55,7 @@ def physicsEngine() { prog: => Unit / {
   with addSystem[Velocity, Rigidbody, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val acceleration = (do getResource[Gravity]()).value * deltaTime;
-    query.foreachRW() { (entity, velocity) =>
+    query.foreachRW() { (_, velocity) =>
       Velocity(velocity.value + acceleration)
     }
     ()
@@ -64,7 +64,7 @@ def physicsEngine() { prog: => Unit / {
   with addSystem[(Position, Velocity), Unit, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
     val gravity = do getResource[Gravity]();
-    query.foreachRW() { (entity, values) =>
+    query.foreachRW() { (_, values) =>
       values match {
         case (position, velocity) => {
           (Position(position.value + velocity.value * deltaTime), velocity)
@@ -76,7 +76,7 @@ def physicsEngine() { prog: => Unit / {
   // Apply angular velocities to rotations
   with addSystem[(Rotation, AngularVelocity), Unit, Unit]() { { query } =>
     val deltaTime = (do getResource[Time]()).deltaTime;
-    query.foreachRW() { (entity, values) =>
+    query.foreachRW() { (_, values) =>
       values match {
         case (rotation, angularVelocity) => {
           (Rotation(rotation.value + angularVelocity.value * deltaTime), angularVelocity)

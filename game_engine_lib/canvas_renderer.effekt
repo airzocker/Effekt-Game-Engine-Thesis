@@ -46,7 +46,7 @@ def canvasRenderer() { prog: => Unit / {
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
     setCameraTransform(context, do getResource[Camera]());
-    query.foreachRO() { (entity, values) =>
+    query.foreachRO() { (_, values) =>
       values match {
         case (position, optRotation, optScale, shape) => {
           val rotation = optRotation.getOrElse() { default() };

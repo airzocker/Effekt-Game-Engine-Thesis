@@ -8,7 +8,7 @@ import game_engine_lib/canvas_renderer
 import game_engine_lib/input
 
 // Components
-record Background()
+record SnakeTag()
 record MoveDir(next: Vector2Int, last: Vector2Int)
 record LastPosition(value: Vector2)
 record NextTail(value: Entity)
@@ -19,13 +19,14 @@ record ResetGame(value: Bool)
 record MoveTimer(moveTimer: Double, doMove: Bool)
 record Head(value: Entity)
 record LastTail(value: Entity)
+record Apple(value: Entity)
 
 def snakeGame() = {
   // Color constants
-  val backgroundColor = Color(120, 150, 50);
-  val headColor = Color(50, 50, 200);
-  val tailColor = Color(80, 120, 60);
-  val appleColor = Color(200, 80, 50);
+  val backgroundColor = Color(200, 180, 50);
+  val headColor = Color(40, 40, 180);
+  val tailColor = Color(60, 200, 50);
+  val appleColor = Color(240, 40, 20);
 
   // Game constants
   val gridSize = 50;
@@ -43,7 +44,7 @@ def snakeGame() = {
   with canvasRenderer();
 
   // Our components
-  with component[Background]();
+  with component[SnakeTag]();
   with component[MoveDir]();
   with component[LastPosition]();
   with component[NextTail]();
@@ -54,13 +55,17 @@ def snakeGame() = {
   with createResource[MoveTimer](MoveTimer(0.0, false));
   with createResource[Head](Head(Entity(0)));
   with createResource[LastTail](LastTail(Entity(0)));
+  with createResource[Apple](Apple(Entity(0)));
 
   // Needed component tuples
+  with zipComponents2[SnakeTag, NextTail]();
   with zipComponents2[Position, MoveDir]();
   with zipComponents2[Position, NextTail]();
   with zipComponents2[Position, LastPosition]();
+  with zipComponents2[Position, Shape]();
   with zipComponents3[Position, Scale, Shape]();
-  with zipComponents4[Position, LastPosition, Shape, MoveDir]();
+  with zipComponents5[Position, LastPosition, Shape, NextTail, SnakeTag]();
+  with zipComponents5[Position, LastPosition, Shape, MoveDir, SnakeTag]();
   
   def initGame() = {
     // Resources
@@ -75,14 +80,30 @@ def snakeGame() = {
     ));
 
     // Head
-    val head = do createEntity[(Position, LastPosition, Shape, MoveDir)]((
+    val head = do createEntity[(Position, LastPosition, Shape, MoveDir, SnakeTag)]((
       Position(startPos),
       LastPosition(startPos),
       Rect(headColor),
-      MoveDir(startDir, startDir)
+      MoveDir(startDir, startDir),
+      SnakeTag()
     ));
     do setResource[Head](Head(head));
     do setResource[LastTail](LastTail(head));
+    
+    // Apple
+    var applePos: Vector2 = zero();
+    each(0, gridSize * gridSize) { (_) { l } =>
+      applePos = Vector2(jsRandomInt(0, gridSize).toDouble(), jsRandomInt(0, gridSize).toDouble());
+      if (startPos == applePos) {
+        l.continue();
+      }
+      l.break();
+    }
+    val apple = do createEntity[(Position, Shape)]((
+      Position(applePos),
+      Rect(appleColor)
+    ));
+    do setResource[Apple](Apple(apple));
   }
 
   // Update game dimensions from window size
@@ -105,9 +126,12 @@ def snakeGame() = {
     if (not((do getResource[GameOver]()).value)) {
       val deltaTime = (do getResource[Time]()).deltaTime;
       var moveTimer = (do getResource[MoveTimer]()).moveTimer - deltaTime;
-      val doMove = moveTimer <= 0.0;
+      val doMove = moveTimer < 0.0;
       if (doMove) {
         moveTimer = moveTimer + moveTime;
+        if (moveTimer < 0.0) {
+          moveTimer = 0.0;
+        }
       }
       do setResource[MoveTimer](MoveTimer(moveTimer, doMove));
     }
@@ -115,10 +139,10 @@ def snakeGame() = {
   };
 
   // Update head
-  with addSystem[(Position, MoveDir), Unit, Unit]() { { query } =>
+  with addSystem[(Position, MoveDir), SnakeTag, Unit]() { { query } =>
     if (not((do getResource[GameOver]()).value)) {
       val doMove = (do getResource[MoveTimer]()).doMove;
-      query.foreachRW() { (entity, values) =>
+      query.foreachRW() { (_, values) =>
         values match {
           case (position, moveDir) => {
             var newMoveDir = moveDir.next;
@@ -156,11 +180,11 @@ def snakeGame() = {
   };
 
   // Update tail
-  with addSystem[(Position, NextTail), Unit, Unit]() { { query } =>
+  with addSystem[(Position, NextTail), SnakeTag, Unit]() { { query } =>
     if (not((do getResource[GameOver]()).value)) {
       val doMove = (do getResource[MoveTimer]()).doMove;
       if (doMove) {
-        query.foreachRW() { (entity, values) =>
+        query.foreachRW() { (_, values) =>
           values match {
             case (position, nextTail) => {
               val newPosition = (do getComponent[LastPosition](nextTail.value)).value;
@@ -172,10 +196,46 @@ def snakeGame() = {
     }
     ()
   };
+  
+  // Update apple
+  // Query is on all snake parts to check for non-colliding placement
+  with addSystem[Position, SnakeTag, Unit]() { { query } =>
+    val doMove = (do getResource[MoveTimer]()).doMove;
+    if (doMove) {
+      val apple = (do getResource[Apple]()).value;
+      val applePos = (do getComponent[Position](apple)).value;
+      val headPos = (do getComponent[Position]((do getResource[Head]()).value)).value;
+      if (headPos == applePos) {
+        var newApplePos: Vector2 = zero();
+        each(0, gridSize * gridSize) { (_) { l } =>
+          newApplePos = Vector2(jsRandomInt(0, gridSize).toDouble(), jsRandomInt(0, gridSize).toDouble());
+          query.foreachRO() { (_, position) =>
+            if (position.value == newApplePos) {
+              l.continue();
+            }
+          };
+          l.break();
+        }
+        do setComponent[Position](apple, Position(newApplePos));
+        // Add tail part
+        val lastTail = (do getResource[LastTail]()).value;
+        val tailPos = (do getComponent[LastPosition](lastTail)).value;
+        val tail = do createEntity[(Position, LastPosition, Shape, NextTail, SnakeTag)]((
+          Position(tailPos),
+          LastPosition(tailPos),
+          Rect(tailColor),
+          NextTail(lastTail),
+          SnakeTag()
+        ));
+        do setResource[LastTail](LastTail(tail));
+      }
+    }
+    ()
+  }
 
   // Detect head collisions
   // Query is on tail parts to check for head collision
-  with addSystem[Position, NextTail, Unit]() { { query } =>
+  with addSystem[Position, (SnakeTag, NextTail), Unit]() { { query } =>
     def gameOver() = {
       do setResource[GameOver](GameOver(true));
     }
@@ -186,7 +246,7 @@ def snakeGame() = {
         if (headPos.x < -0.5 || headPos.y < -0.5 || headPos.x > gridSize.toDouble() - 0.5 || headPos.y > gridSize.toDouble() - 0.5) {
           gameOver();
         }
-        query.foreachRO() { (entity, position) =>
+        query.foreachRO() { (_, position) =>
           if (headPos == position.value) {
             gameOver();
           }
@@ -202,7 +262,7 @@ def snakeGame() = {
     if (not((do getResource[GameOver]()).value)) {
       val doMove = (do getResource[MoveTimer]()).doMove;
       if (doMove) {
-        query.foreachRW() { (entity, values) =>
+        query.foreachRW() { (_, values) =>
           values match {
             case (position, lastPosition) => {
               (position, LastPosition(position.value))
@@ -211,7 +271,7 @@ def snakeGame() = {
         };
       }
     } else {
-      query.foreachRW() { (entity, values) =>
+      query.foreachRW() { (_, values) =>
         values match {
           case (position, lastPosition) => {
             (Position(lastPosition.value), lastPosition)

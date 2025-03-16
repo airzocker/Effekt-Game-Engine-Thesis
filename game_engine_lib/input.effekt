@@ -6,13 +6,13 @@ extern io def jsInitInput(): Unit =
 extern io def jsClearFrameInput(): Unit =
   js "clearFrameInput()"
 
-extern io def jsGetKey(keyCode: String): Bool =
+extern pure def jsGetKey(keyCode: String): Bool =
   js "getKey(${keyCode})"
 
-extern io def jsGetKeyDown(keyCode: String): Bool =
+extern pure def jsGetKeyDown(keyCode: String): Bool =
   js "getKeyDown(${keyCode})"
 
-extern io def jsGetKeyUp(keyCode: String): Bool =
+extern pure def jsGetKeyUp(keyCode: String): Bool =
   js "getKeyUp(${keyCode})"
 
 extern js """

@@ -1758,7 +1758,9 @@ def world() { prog: => Unit / {
           if (not((do getResource[RunWorld]()).run)) {
             l.break();
           }
-          await(promise(box { wait(0) } ));
+          // TEMP: Slightly longer runtime before memory crash
+          wait(10);
+          //wait(0);
           stepWorld();
         }
       }
