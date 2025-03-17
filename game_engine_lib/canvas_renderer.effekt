@@ -32,6 +32,7 @@ def canvasRenderer() { prog: => Unit / {
 } = {
   val context = jsGetContext();
   jsInitCanvas();
+  jsInitFont(context);
   with component[Shape]();
   with createResource[WindowProperties](getWindowProperties());
   with createResource[Camera](Camera(
@@ -89,7 +90,6 @@ def drawShape(context: CanvasRenderingContext2D, shape: Shape): Unit = {
       jsFillStyle(context, color.show());
       jsFillRect(context);
     case Text(color, text) =>
-      jsInitFont(context);
       jsFillStyle(context, color.show());
       jsFillText(context, text);
   }

@@ -42,7 +42,7 @@ def snakeGame() = {
     (gridSize / 2).toDouble()
   );
   val startDir = Vector2Int(0, 1);
-  val textScale = 1.0 / 12.0;
+  val gameOverTextScale = 1.0 / 12.0;
 
   // ECS, engine & renderer init
   with engineWorld();
@@ -137,15 +137,15 @@ def snakeGame() = {
   def gameOver() = {
     do setResource[GameOver](GameOver(true));
     do createEntity[(Position, Scale, Shape)]((
-      Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) + gridSize.toDouble() * textScale)),
-      //Scale(uniform(gridSize.toDouble() * textScale)),
-      Scale(Vector2(gridSize.toDouble() * textScale, gridSize.toDouble() * textScale)),
+      Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) + gridSize.toDouble() * gameOverTextScale)),
+      //Scale(uniform(gridSize.toDouble() * gameOverTextScale)),
+      Scale(Vector2(gridSize.toDouble() * gameOverTextScale, gridSize.toDouble() * gameOverTextScale)),
       Text(textColor, "GAME OVER")
     ));
     val score = (do getResource[ScoreEntity]()).value;
-    do setComponent[Position](score, Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) - gridSize.toDouble() * textScale)));
+    do setComponent[Position](score, Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) - gridSize.toDouble() * gameOverTextScale)));
     //do setComponent[Scale](score, Scale(uniform(gridSize.toDouble() * textScale)));
-    do setComponent[Scale](score, Scale(Vector2(gridSize.toDouble() * textScale, gridSize.toDouble() * textScale)));
+    do setComponent[Scale](score, Scale(Vector2(gridSize.toDouble() * gameOverTextScale, gridSize.toDouble() * gameOverTextScale)));
     ()
   }
 
