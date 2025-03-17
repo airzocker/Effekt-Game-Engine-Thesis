@@ -1,5 +1,6 @@
-import game_engine_lib/example_game
-import games/snake_game
+//import game_engine_lib/example_game
+
+//import games/snake_game
 import games/engineless_snake
 
 def main() = {

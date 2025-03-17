@@ -2,7 +2,57 @@ module engineless_snake
 
 import io/time
 
+interface WindowProperties {
+  def getWindowW(): Int
+  def getWindowH(): Int
+  def getSmallerSide(): Int
+  def pixelsPerUnit(): Double
+  def gameToWindow(x: Double, y: Double): (Double, Double)
+  def updateWindowProperties(): Unit
+}
+
+def snakeWindowProperties(gridSize: Int, wallSize: Double) { prog: => Unit / WindowProperties } = {
+  var width = 1;
+  var height = 1;
+  def smallerSide() = {
+    min(width, height)
+  }
+  def pixelsPerGrid() = {
+    smallerSide().toDouble() / (gridSize.toDouble() + wallSize * 2.0)
+  }
+  try {
+    prog();
+  } with WindowProperties {
+    def getWindowW() = {
+      resume(width)
+    }
+    def getWindowH() = {
+      resume(height)
+    }
+    def getSmallerSide() = {
+      resume(smallerSide())
+    }
+    def pixelsPerUnit() = {
+      resume(pixelsPerGrid())
+    }
+    def gameToWindow(x: Double, y: Double) = {
+      val ppu = pixelsPerGrid();
+      resume((
+        (x + wallSize + 0.5) * ppu,
+        height.toDouble() - ((y + wallSize + 0.5) * ppu)
+      ))
+    }
+    def updateWindowProperties() = {
+      width = jsGetCanvasWidth();
+      height = jsGetCanvasHeight();
+      resume(())
+    }
+  }
+}
+
 def runSnake() = {
+  val context = jsGetContext();
+
   // Color constants
   val wallColor = "rgb(100 98 105)";
   val backgroundColor = "rgb(200 180 50)";
@@ -20,8 +70,7 @@ def runSnake() = {
   val gameOverTextScale = 1.0 / 12.0;
 
   // Game state
-  var windowW = 1;
-  var windowH = 1;
+  with snakeWindowProperties(gridSize, wallSize);
   var gameOver = false;
   var headPosX = gridSize / 2;
   var headPosY = gridSize / 2;
@@ -29,24 +78,14 @@ def runSnake() = {
   var headDirY = 1;
   var lastMoveDirX = headDirX;
   var lastMoveDirY = headDirY;
-  val tailParts: List[(Int, Int)] = [];
+  var tailParts: List[(Int, Int)] = [];
   var appleX = 0;
   var appleY = 0;
+  var score = 0;
   var scoreX = wallSize * 1.5 - 0.5;
   var scoreY = (gridSize.toDouble() - 0.5) + wallSize * 0.5;
-
-  def gameToWindow(x: Double, y: Double) = {
-    val smallerSide = if (windowH > windowW) {
-      windowW.toDouble()
-    } else {
-      windowH.toDouble()
-    };
-    val pixelsPerUnit = smallerSide / (gridSize.toDouble() + wallSize * 2.0);
-    (
-      (x + wallSize + 0.5) * pixelsPerUnit,
-      windowH.toDouble() - ((y + wallSize + 0.5) * pixelsPerUnit)
-    )
-  }
+  var lastFrameTime = jsGetTime();
+  var moveTimer = moveTime;  
 
   def setGameOver() = {
     gameOver = true;
@@ -76,10 +115,27 @@ def runSnake() = {
     }
   }
 
-  def gameLoop() = {
-    windowW = jsGetCanvasWidth();
-    windowH = jsGetCanvasHeight();
+  // Init
+  newApple();
 
+  def gameLoop() = {
+    do updateWindowProperties();
+
+    // Update time
+    val newFrameTime = jsGetTime();
+    val deltaTime = newFrameTime - lastFrameTime;
+    lastFrameTime = newFrameTime;
+    // Update moveTimer
+    moveTimer = moveTimer - deltaTime;
+    val doMove = moveTimer < 0.0;
+    if (doMove) {
+      moveTimer = moveTimer + moveTime;
+      if (moveTimer < 0.0) {
+        moveTimer = 0.0;
+      }
+    }
+
+    // Get newest input
     if (jsGetKey("ArrowUp") && lastMoveDirY == 0) {
       headDirX = 0;
       headDirY = 1;
@@ -94,9 +150,94 @@ def runSnake() = {
       headDirY = 0;
     }
 
-    // TODO: Update timer, head, tails, apple, collisions
+    if (doMove) {
+      // Update head & tail positions
+      var nextTailPosX = headPosX;
+      var nextTailPosY = headPosY;
+      val newHeadX = headPosX + headDirX;
+      val newHeadY = headPosY + headDirY;
+      lastMoveDirX = headDirX;
+      lastMoveDirY = headDirY;
+      val newTailParts = tailParts.map() { tail =>
+        val posX = nextTailPosX;
+        val posY = nextTailPosY;
+        nextTailPosX = tail.first;
+        nextTailPosY = tail.second;
+        (posX, posY)
+      };
 
-    // TODO: Draw
+      // Head collision checks
+      if (newHeadX < 0 || newHeadX >= gridSize || newHeadY < 0 || newHeadY >= gridSize) {
+        setGameOver();
+      } else {
+        newTailParts.foreach() { (tail) { l } =>
+          if (newHeadX == tail.first && newHeadY == tail.second) {
+            setGameOver();
+            l.break();
+          }
+        };
+      }
+
+      // Set new head & tail positions
+      if (not(gameOver)) {
+        headPosX = newHeadX;
+        headPosY = newHeadY;
+        tailParts = newTailParts;
+      }
+
+      // Apple check
+      if (headPosX == appleX && headPosY == appleY) {
+        score = score + 1;
+        tailParts = tailParts.append([(nextTailPosX, nextTailPosY)]);
+        newApple();
+      }
+    }    
+
+    // Drawing
+    // ==========
+
+    def drawCube(x: Int, y: Int) = {
+      val pos = do gameToWindow(x.toDouble() - 0.5, y.toDouble() + 0.5);
+      val ppu = do pixelsPerUnit();
+      jsFillRect(context, pos.first, pos.second, ppu, ppu);
+    }
+
+    jsClearCanvas(context);
+
+    // Walls
+    val smallerSide = (do getSmallerSide()).toDouble();
+    jsFillStyle(context, wallColor);
+    jsFillRect(context, 0.0, 0.0, smallerSide, smallerSide);
+    // Background
+    val wallPixels = wallSize * do pixelsPerUnit();
+    jsFillStyle(context, backgroundColor);
+    jsFillRect(context, wallPixels, wallPixels, smallerSide - wallPixels * 2.0, smallerSide - wallPixels * 2.0);
+    // Apple
+    jsFillStyle(context, appleColor);
+    drawCube(appleX, appleY);
+    // Snake head
+    jsFillStyle(context, headColor);
+    drawCube(headPosX, headPosY);
+    // Snake tails
+    jsFillStyle(context, tailColor);
+    tailParts.foreach() { tail =>
+      drawCube(tail.first, tail.second);
+    };
+    // Score
+    jsFillStyle(context, textColor);
+    if (gameOver) {
+      val gameOverPos = do gameToWindow(0.0 - gridOffset, 0.0 - gridOffset + gridSize.toDouble() * gameOverTextScale);
+      val scorePos = do gameToWindow(0.0 - gridOffset, 0.0 - gridOffset - gridSize.toDouble() * gameOverTextScale);
+      val fontSize = gridSize.toDouble() * gameOverTextScale * do pixelsPerUnit();
+      jsInitFont(context, fontSize);
+      jsFillText(context, "GAME OVER", gameOverPos.first, gameOverPos.second, fontSize);
+      jsFillText(context, "Score: " ++ score.show(), scorePos.first, scorePos.second, fontSize);
+    } else {
+      val scorePos = do gameToWindow(wallSize * 1.5 - 0.5, (gridSize.toDouble() - 0.5) + 0.5 * wallSize);
+      val fontSize = (7.0 / 8.0) * wallSize * do pixelsPerUnit();
+      jsInitFont(context, fontSize);
+      jsFillText(context, "Score: " ++ score.show(), scorePos.first, scorePos.second, fontSize);
+    }
 
     ()
   }
@@ -124,6 +265,7 @@ def enginelessSnake() = {
       if (jsGetKey("Escape")) {
         keyLoop.break();
       }
+      wait(50);
     }
     runLoop.break();
   }
@@ -155,13 +297,13 @@ extern io def jsClearCanvas(context: CanvasRenderingContext2D): Unit =
 extern io def jsFillStyle(context: CanvasRenderingContext2D, color: String): Unit =
   js "(${context}).fillStyle = ${color}"
 
-extern io def jsFillRect(context: CanvasRenderingContext2D, x: Int, y: Int, w: Int, h: Int): Unit =
+extern io def jsFillRect(context: CanvasRenderingContext2D, x: Double, y: Double, w: Double, h: Double): Unit =
   js "(${context}).fillRect(${x}, ${y}, ${w}, ${h})"
 
-extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Int): Unit =
+extern io def jsInitFont(context: CanvasRenderingContext2D, fontSize: Double): Unit =
   js "initFont(${context}, ${fontSize})"
 
-extern io def jsFillText(context: CanvasRenderingContext2D, text: String, x: Int, y: Int, fontSize: Int): Unit =
+extern io def jsFillText(context: CanvasRenderingContext2D, text: String, x: Double, y: Double, fontSize: Double): Unit =
   js "(${context}).fillText(${text}, ${x}, ${y} + 0.36 * ${fontSize})"
 
 extern pure def jsGetKey(keyCode: String): Bool =
