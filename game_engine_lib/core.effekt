@@ -1,8 +1,76 @@
 module core
 
 import mutable/map
+import array
 import resizable_array
 import stream
+
+record OptionArray[T](arr: ResizableArray[Option[T]], freeIndices: ResizableArray[Int])
+
+def optionArray[T](initialCapacity: Int): OptionArray[T] = {
+  OptionArray(resizableArray(initialCapacity), resizableArray(4))
+}
+
+def unsafeGet[T](optionArray: OptionArray[T], index: Int): T = {
+  optionArray.arr.unsafeGet(index) match {
+    case Some(value) => value
+    case None() => panic("OptionArray unsafeGet has no value at index " ++ index.show() ++ "!")
+  }
+}
+
+def unsafeSet[T](optionArray: OptionArray[T], index: Int, value: T): Unit = {
+  optionArray.arr.unsafeSet(index, value);
+}
+
+def add[T](optionArray: OptionArray[T], value: T): Int = {
+  if (optionArray.freeIndices.size() > 0) {
+    with on[OutOfBounds].default {
+      panic("impossible error");
+    }
+    val index = optionArray.freeIndices.popRight();
+    optionArray.arr.unsafeSet(index, Some(value));
+    index
+  } else {
+    optionArray.arr.add(Some(value))
+  }
+}
+
+def remove[T](optionArray: OptionArray[T], index: Int): Unit = {
+  optionArray.arr.unsafeSet(index, None());
+  optionArray.freeIndices.add(index);
+  ()
+}
+
+def containsAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
+  var contains = true;
+  values.foreach() { (value) { l } =>
+    if (map.get(values).isDefined()) {
+      l.continue();
+    }
+    contains = false;
+    l.break();
+  };
+  contains
+}
+
+def containsNone[K, V](map: Map[K, V], values: Array[K]): Bool = {
+  var contains = true;
+  values.foreach() { (value) { l } =>
+    if (map.get(values).isDefined()) {
+      contains = false;
+      l.break();
+    }
+  };
+  contains
+}
+
+def containsOnlyAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
+  if (values.size() != map.size()) {
+    false
+  } else {
+    map.containsAll(values)
+  }
+}
 
 // Map delete extension
 extern js """
@@ -15,12 +83,8 @@ function map$delete(m, key) {
 extern io def delete[K, V](m: Map[K, V], key: K): Unit =
   js "map$delete(${m}, ${key})"
 
-def addSome[T](l: List[T], value: Option[T]): List[T] = {
-  value match {
-    case Some(v) => l.append([v])
-    case None() => l
-  }
-}
+extern pure def size[K, V](m: Map[K, V]): Int =
+  js "${m}.size"
 
 // Returns the index that got swapped away (to the removed index), if any
 def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
@@ -49,48 +113,6 @@ def each[T](arr: ResizableArray[T]): Unit / emit[T] = {
     }
   };
   go(0);
-}
-
-def dedupMergeInt(l1: List[Int], l2: List[Int]): List[Int] = {
-  if (l1.size() == 0) {
-    return(l2);
-  } else if (l2.size() == 0) {
-    return(l1);
-  } else {
-    var l1 = l1;
-    var l2 = l2;
-    val result = resizableArray(4);
-    loop() { { l } =>
-      l1 match {
-        case Nil() => l.break();
-          case Cons(val1, rest1) =>
-          l2 match {
-            case Nil() => l.break();
-              case Cons(val2, rest2) =>
-              if (val1 == val2) {
-                result.add(val1)
-                l1 = rest1
-                l2 = rest2
-              } else if (val1 < val2) {
-                result.add(val1);
-                l1 = rest1;
-              } else {
-                result.add(val2);
-                l2 = rest2;
-              }
-          }
-      }
-    }
-    l1.foreach() { v =>
-      result.add(v);
-      ()
-    }
-    l2.foreach() { v =>
-      result.add(v);
-      ()
-    }
-    result.toList();
-  }
 }
 
 record Color(r: Int, g: Int, b: Int)
