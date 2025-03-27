@@ -52,8 +52,9 @@ interface ArchManager {
   def addComponent[T](entityData: EntityData, value: T): (EntityData, Option[Entity]) / Component[T]
   def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
   def removeComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
-  def iterEntities(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
-  def iterComponentIndices(archId: Int, componentId: Int) { prog: => Unit / read[Int] }: Unit / stop
+  def iterEntities(archIds: ResizableArray[Int]) { prog: => Unit / read[Entity] }: Unit / stop
+  def iterRO[T](archIds: ResizableArray[Int]) { prog: => Unit / read[T] }: Unit / { Component[T], stop }
+  def iterRW[T](archIds: ResizableArray[Int]) { prog: => Unit / { read[T], emit[T] } }: Unit / { Component[T], stop }
   def getQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
 }
 
@@ -183,6 +184,9 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
   def removeArch(archId: Int) = {
     changeVersion = changeVersion + 1;
     archs.remove(archId);
+  }
+  def getComponentIndices(archId: Int, componentId: Int): ResizableArray[Int] = {
+    archs.unsafeGet(archId).componentIndices.unsafeGet(componentId)
   }
   def getMatchingArchId(componentIds: Array[Int]): Option[Int] = {
     var matching = None();
@@ -330,39 +334,103 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         )
       }
     }
-    def iterEntities(archId) = {
+    def iterEntities(archIds) = {
       resume { { prog } =>
-        val entities = archs.unsafeGet(archId).entities;
+        if (archIds.size() == 0) {
+          try {
+            prog();
+          } with read[Entity] {
+            do stop()
+          }
+        }
+        var archIndex = 0;
+        var entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
         var index = 0;
         try {
           prog();
         } with read[Entity] {
           resume {
-            if (index < entities.size()) {
-              index = index + 1;
-              entities.unsafeGet(index - 1)
-            } else {
-              do stop()
+            while (index >= entities.size()) {
+              index = 0;
+              archIndex = archIndex + 1;
+              if (archIndex >= archIds.size()) {
+                do stop()
+              } else {
+                entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
+              }             
             }
+            index = index + 1;
+            entities.unsafeGet(index - 1)
           }
         }
       }
     }
-    def iterComponentIndices(archId, componentId) = {
+    def iterRO[T](archIds) = {
       resume { { prog } =>
-        val componentIndices = archs.unsafeGet(archId).componentIndices.unsafeGet(componentId);
+        if (archIds.size() == 0) {
+          try {
+            prog();
+          } with read[T] {
+            do stop()
+          }
+        }
+        val compId = do getComponentId();
+        var archIndex = 0;
+        var componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId);
         var index = 0;
         try {
           prog();
-        } with read[Int] {
+        } with read[T] {
           resume {
-            if (index < componentIndices.size()) {
-              index = index + 1;
-              componentIndices.unsafeGet(index - 1)
-            } else {
-              do stop()
+            while (index >= componentIndices.size()) {
+              index = 0;
+              archIndex = archIndex + 1;
+              if (archIndex >= archIds.size()) {
+                do stop()
+              } else {
+                compIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId);
+              }             
             }
+            index = index + 1;
+            do getComponent(componentIndices.unsafeGet(index - 1))
           }
+        }
+      }
+    }
+    def iterRW[T](archIds) = {
+      resume { { prog } =>
+        if (archIds.size() == 0) {
+          try {
+            prog();
+          } with read[T] {
+            do stop()
+          } with emit[T] { _ =>
+            do stop()
+          }
+        }
+        val compId = do getComponentId();
+        var archIndex = 0;
+        var componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId);
+        var index = 0;
+        try {
+          prog();
+        } with read[T] {
+          resume {
+            while (index >= componentIndices.size()) {
+              index = 0;
+              archIndex = archIndex + 1;
+              if (archIndex >= archIds.size()) {
+                do stop()
+              } else {
+                compIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId);
+              }             
+            }
+            index = index + 1;
+            do getComponent(componentIndices.unsafeGet(index - 1))
+          }
+        } with emit[T] { value =>
+          do setComponent(compIndices.unsafeGet(index - 1), value)
+          resume(())
         }
       }
     }
@@ -581,20 +649,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
       val withIds = emptyMap();
       val withoutIds = emptyMap();
       withIds.update(compId, ());
-      def iterRO() { prog: => Unit / read[T] }: Unit / stop = {
-        (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
-          matchingArchIds = matches;
-          lastChangeVersion = changeVersion;
-        };
-        matchingArchIds.foreach() { archId =>
-          with iterComponentIndices
-        };
-        try {
-          prog();
-        } with read[T] {
-        }
-      }
-      def iterRO() { prog: => Unit / { read[T], emit[T] } }: Unit / stop = {
+      def updateQuery() = {
         (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
           matchingArchIds = matches;
           lastChangeVersion = changeVersion;
@@ -612,15 +667,36 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
             withoutC[C, T, Unit, Unit]()            
           }
           def foreachRO() { action } = {
+            updateQuery();
+            try {
+              with do iterEntities(matchingArchIds);
+              with do iterRO(matchingArchIds);
+              loop {
+                action(do read(), do read());
+              }
+            } with stop {
+              ()
+            }
           }
           def foreachRW() { action } = {
-            ()
+            updateQuery();
+            try {
+              with do iterEntities(matchingArchIds);
+              with do iterRW(matchingArchIds);
+              loop {
+                do emit(action(do read(), do read()));
+              }
+            } with stop {
+              ()
+            }
           }
           def iterRO() { prog } = {
-            iterRO() { prog };
+            with do iterRO(matchingArchIds);
+            prog();
           }
           def iterRW( prog ) = {
-            iterRW() { prog };
+            with do iterRW(matchingArchIds);
+            prog();
           }
           def getWithWithoutIds() = {
             (withIds, withoutIds)
