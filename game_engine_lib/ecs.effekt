@@ -10,8 +10,8 @@ import stream
 import game_engine_lib/core
 
 record Entity(id: Int)
+
 record EntityData(archId: Int, entityIndex: Int)
-record EntityInfo(entity: Entity, data: EntityData)
 
 record ComponentStore[T](values: ResizableArray[Option[T]], freeIndices: ResizableArray[Int])
 
@@ -19,6 +19,11 @@ record Arch(componentIndices: Map[Int, ResizableArray[Int]], entities: Resizable
 
 // Resource to signal world loop exit
 record RunWorld(run: Bool)
+
+interface ECSException {
+  def invalidEntity(entity: Entity): Nothing
+  def invalidComponent(entity: Entity, componentId: Int): Nothing
+}
 
 interface ComponentManager {
   def registerComponentStore[T](componentStore: Ref[ComponentStore[T]]): Int
@@ -41,35 +46,46 @@ interface Resource[T] {
 interface ArchManager {
   def hasComponent(archId: Int, componentId: Int): Bool
   def addEntity(entity: Entity): EntityData
-  def removeSwapEntity(archId: Int, entityIndex: Int): Option[EntityInfo]
-  def getComponent[T](archId: Int, entityIndex: Int): T / Component[T]
-  def setComponent[T](archId: Int, entityIndex: Int, value: T): Unit / Component[T]
-  def addComponent[T](archId: Int, entityIndex: Int, value: T): (EntityInfo, Option[EntityInfo]) / Component[T]
-  def addExistingComponent(archId: Int, entityIndex: Int, componentId: Int, componentIndex: Int): (EntityInfo, Option[EntityInfo])
-  def removeComponent(archId: Int, entityIndex: Int, componentId: Int): (EntityInfo, Option[EntityInfo])
+  def removeSwapEntity(entityData: EntityData): Option[Entity]
+  def getComponent[T](entityData: EntityData): Option[T] / Component[T]
+  def setComponent[T](entityData: EntityData, value: T): Option[Unit] / Component[T]
+  def addComponent[T](entityData: EntityData, value: T): (EntityData, Option[Entity]) / Component[T]
+  def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
+  def removeComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
   def iterEntities(archId: Int) { prog: => Unit / read[Entity] }: Unit / stop
   def iterComponentIndices(archId: Int, componentId: Int) { prog: => Unit / read[Int] }: Unit / stop
-  def getQueryArchIds(lastChangeVersion: Int, withIds: Map[Int, Unit], withoutIds: Map[Int, Unit]): Option[ResizableArray[Int]]
+  def getQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
+}
+
+interface EntityIdManager {
+  def nextEntityId(): Int
 }
 
 interface EntityManager {
   def hasEntity(entity: Entity): Bool
-  def hasComponent(entity: Entity, componentId: Int): Bool
+  def hasComponent[T](entity: Entity): Bool / { Component[T], ECSException }
+  def getEntityData(entity: Entity): EntityData / ECSException
   def createEntity(): Entity
-  def destroyEntity(entity: Entity): Unit
-  def addComponent[T](entity: Entity, value: T): Unit / Component[T]
-  def removeComponent[T](entity: Entity): Unit / Component[T]
-  def getComponent[T](entity: Entity): T / Component[T]
-  def setComponent[T](entity: Entity, value: T): Unit / Component[T]
+  def destroyEntity(entity: Entity): Unit / ECSException
+  def addComponent[T](entity: Entity, value: T): Unit / { Component[T], ECSException }
+  def removeComponent[T](entity: Entity): Unit / { Component[T], ECSException }
+  def getComponent[T](entity: Entity): T / { Component[T], ECSException }
+  def setComponent[T](entity: Entity, value: T): Unit / { Component[T], ECSException }
 }
 
 interface Query[T, With, Without] {
+  def addC[C](): Query[(T, C), With, Without] at { global, io } / Component[C]
+  def withC[C](): Query[T, (With, C), Without] at { global, io } / Component[C]
+  def withoutC[C](): Query[T, With, (Without, C)] at { global, io } / Component[C]
   def foreachRO() { action: (Entity, T) => Unit }: Unit
   def foreachRW() { action: (Entity, T) => T }: Unit
+  def iterRO() { prog: => Unit / read[T] }: Unit / stop
+  def iterRW() { prog: => Unit / { read[T], emit[T] } }: Unit / stop
+  def getWithWithoutIds(): (Map[Int, Unit], Map[Int, Unit])
 }
 
 interface QueryManager {
-  def query(): Query[Unit, Unit, Unit] at { global, io } 
+  def query[T](): Query[T, Unit, Unit] at { global, io } 
 }
 
 interface System {
@@ -80,16 +96,6 @@ interface World {
   def stepWorld(): Unit / System
   def runWorld(): Unit / System
   def addSystem() { body: => Unit / EntityManager }: Unit
-  def hasEntity(entity: Entity): Bool
-  def hasComponent(entity: Entity, componentId: Int): Bool
-  def createEntity(): Entity
-  def destroyEntity(entity: Entity): Unit
-  def addComponent[T](entity: Entity, value: T): Unit / Component[T]
-  def removeComponent[T](entity: Entity): Unit / Component[T]
-  def getComponent[T](entity: Entity): T / Component[T]
-  def setComponent[T](entity: Entity, value: T): Unit / Component[T]
-  def getQueryArchIds(lastChangeVersion: Int, withIds: Map[Int, Unit], withoutIds: Map[Int, Unit]): Option[ResizableArray[Int]]
-  def query(): Query[Unit, Unit, Unit] at { global, io } 
 }
 
 def emptyComponentStore[T](): ComponentStore[T] = {
@@ -181,38 +187,27 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
   def getMatchingArchId(componentIds: Array[Int]): Option[Int] = {
     var matching = None();
     archs.arr.foreachIndex() { (i, archOpt) { l } =>
-      archOpt match {
-        case Some(arch) => {
-          if (arch.componentIndices.containsOnlyAll(componentIds)) {
-            matching = Some(i);
-            l.break();
-          }
-          ()
+      archOpt.map() { arch =>
+        if (arch.componentIndices.containsOnlyAll(componentIds)) {
+          matching = Some(i);
+          l.break();
         }
-        case None() => ()
+        ()
       }
     };
     matching
   }
-  def removeSwapEntityIndices(arch: Arch, entityIndex: Int): Option[Int] = {
-    val swapped = arch.entities.removeSwap(entityIndex);
+  def removeSwapEntityIndices(arch: Arch, entityIndex: Int): Option[Entity] = {
+    val swapped = arch.entities.removeSwap(entityIndex).map() { index =>
+      arch.entities.unsafeGet(index)
+    };
     arch.componentIndices.values().foreach() { indices =>
       indices.removeSwap(entityIndex);
     };
     swapped
   }
-  def getComponent[T](archId: Int, entityIndex: Int): T / Component[T] = {
-    val compId = do getComponentId();
-    val compIndex = archs.unsafeGet(archId).componentIndices.unsafeGet(compId).unsafeGet(entityIndex);
-    do getComponent(compIndex)
-  }
-  def setComponent[T](archId: Int, entityIndex: Int, value: T): Unit / Component[T] = {
-    val compId = do getComponentId();
-    val compIndex = archs.unsafeGet(archId).componentIndices.unsafeGet(compId).unsafeGet(entityIndex);
-    do setComponent(compIndex, value);
-  }
-  def addExistingComponent(archId: Int, entityIndex: Int, componentId: Int, componentIndex: Int): (EntityInfo, Option[EntityInfo]) = {
-    val oldArch = archs.unsafeGet(archId);
+  def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity]) = {
+    val oldArch = archs.unsafeGet(entityData.archId);
     val newCompIndices = emptyMap();
     var sameArch = false;
     oldArch.componentIndices.keys().foreach() { (compId) { l } =>
@@ -224,34 +219,30 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
     };
     newCompIndices.update(componentId, resizableArray(0));
     if (sameArch) {
-      val oldComponentIndex = oldArch.componentIndices.unsafeGet(componentId).unsafeGet(entityIndex);
+      val oldComponentIndex = oldArch.componentIndices.unsafeGet(componentId).unsafeGet(entityData.entityIndex);
       do copyComponent(componentId, componentIndex, oldComponentIndex);
       do removeComponent(componentId, componentIndex);
       (
-        EntityInfo(oldArch.entities.unsafeGet(entityIndex), EntityData(archId, entityIndex)),
+        entityData,
         None()
       )
     } else {
-      val newArchId = getMatchingArchId(newCompIndices.keys()) match {
-        case Some(newArchId) => newArchId
-        case None() => addArch(Arch(newCompIndices, resizableArray(4)))
+      val newArchId = getMatchingArchId(newCompIndices.keys()).getOrElse() {
+        addArch(Arch(newCompIndices, resizableArray(4)))
       };
       val newArch = archs.unsafeGet(newArchId);
-      val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityIndex));
+      val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityData.entityIndex));
       oldArch.componentIndices.keys().foreach() { compId =>
-        newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityIndex));
+        newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex));
       };
       newArch.componentIndices.unsafeGet(componentId).add(componentIndex);
-      val swappedInfo = oldArch.removeSwapEntityIndices(entityIndex) match {
-        case Some(_) => Some(EntityInfo(oldArch.entities.unsafeGet(entityIndex), EntityData(archId, entityIndex)))
-        case None() => None()
-      };
-      if (archId > 0 && oldArch.entities.size() == 0) {
-        removeArch(archId);
+      val swapped = oldArch.removeSwapEntityIndices(entityData.entityIndex);
+      if (entityData.archId > 0 && oldArch.entities.size() == 0) {
+        removeArch(entityData.archId);
       }
       (
-        EntityInfo(newArch.entities.unsafeGet(newEntityIndex), EntityData(newArchId, newEntityIndex)),
-        swappedInfo
+        EntityData(newArchId, newEntityIndex),
+        swapped
       )
     }
   }
@@ -264,41 +255,46 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
     def addEntity(entity) = {
       resume(EntityData(0, archs.unsafeGet(0).entities.add(entity)))
     }
-    def removeSwapEntity(archId, entityIndex) = {
-      val arch = archs.unsafeGet(archId);
+    def removeSwapEntity(entityData) = {
+      val arch = archs.unsafeGet(entityData.archId);
       arch.componentIds.foreach() { compId =>
-        val compIndex = arch.componentIndices.unsafeGet(compId).unsafeGet(entityIndex);
+        val compIndex = arch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex);
         do removeComponent(compId, compIndex);
       };
-      val swappedInfo = arch.removeSwapEntityIndices(entityIndex) match {
-        case Some(index) => Some(EntityInfo(arch.entities.unsafeGet(index), EntityData(archId, index)))
-        case None() => None()
-      };
-      if (archId > 0 && arch.entities.size() == 0) {
-        removeArch(archId);
+      val swapped = arch.removeSwapEntityIndices(entityData.entityIndex);
+      if (entityData.archId > 0 && arch.entities.size() == 0) {
+        removeArch(entityData.archId);
       }
-      swappedInfo
+      swapped
     }
-    def getComponent[T](archId, entityIndex) = {
+    def getComponent[T](entityData) = {
       resume {
-        getComponent(archId, entityIndex)
+        val compId = do getComponentId();
+        archs.unsafeGet(entityData.archId).componentIndices.get(compId).map() { compIndices =>
+          val compIndex = compIndices.unsafeGet(entityData.entityIndex);
+          do getComponent(compIndex)
+        }
       }
     }
-    def setComponent[T](archId, entityIndex, value) = {
+    def setComponent[T](entityData, value) = {
       resume {
-        setComponent(archId, entityIndex, value);
+        val compId = do getComponentId();
+        archs.unsafeGet(entityData.archId).componentIndices.get(compId).map() { compIndices =>
+          val compIndex = compIndices.unsafeGet(entityData.entityIndex);
+          do setComponent(compIndex, value);
+        }
       }
     }
-    def addComponent[T](archId, entityIndex, value) = {
+    def addComponent[T](entityData, value) = {
       resume {
-        addExistingComponent(archId, entityIndex, compId, do addComponent(value));
+        addExistingComponent(entityData, compId, do addComponent(value));
       }
     }
-    def addExistingComponent(archId, entityIndex, componentId, componentIndex) = {
-      resume(addExistingComponent(archId, entityIndex, componentId, componentIndex))
+    def addExistingComponent(entityData, componentId, componentIndex) = {
+      resume(addExistingComponent(entityData, componentId, componentIndex))
     }
-    def removeComponent(archId, entityIndex, componentId) = {
-      val oldArch = archs.unsafeGet(archId);
+    def removeComponent(entityData, componentId) = {
+      val oldArch = archs.unsafeGet(entityData.archId);
       val newCompIndices = emptyMap();
       var sameArch = true;
       oldArch.componentIndices.keys().foreach() { compId =>
@@ -310,31 +306,27 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
       };
       if (sameArch) {
         (
-          EntityInfo(oldArch.entities.unsafeGet(entityIndex), EntityData(archId, entityIndex)),
+          entityData,
           None()
         )
       } else {
         val newCompIds = newCompIndices.keys();
-        val newArchId = getMatchingArchId(newCompIds) match {
-          case Some(newArchId) => newArchId
-          case None() => addArch(Arch(newCompIndices, resizableArray(4)))
+        val newArchId = getMatchingArchId(newCompIds).getOrElse() {
+          addArch(Arch(newCompIndices, resizableArray(4)))
         };
         val newArch = archs.unsafeGet(newArchId);
-        val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityIndex));
+        val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityData.entityIndex));
         newCompIds.foreach() { compId =>
-          newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityIndex));
+          newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex));
         };
-        do removeComponent(componentId, oldArch.componentIndices.unsafeGet(componentId).unsafeGet(entityIndex));
-        val swappedInfo = oldArch.removeSwapEntityIndices(entityIndex) match {
-          case Some(_) => Some(EntityInfo(oldArch.entities.unsafeGet(entityIndex), EntityData(archId, entityIndex)))
-          case None() => None()
-        };
-        if (archId > 0 && oldArch.entities.size() == 0) {
-          removeArch(archId);
+        do removeComponent(componentId, oldArch.componentIndices.unsafeGet(componentId).unsafeGet(entityData.entityIndex));
+        val swapped = oldArch.removeSwapEntityIndices(entityData.entityIndex);
+        if (entityData.archId > 0 && oldArch.entities.size() == 0) {
+          removeArch(entityData.archId);
         }
         (
-          EntityInfo(newArch.entities.unsafeGet(newEntityIndex), EntityData(newArchId, newEntityIndex)),
-          swappedInfo
+          EntityData(newArchId, newEntityIndex),
+          swapped
         )
       }
     }
@@ -374,22 +366,19 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def getQueryArchIds(lastChangeVersion, withIds, withoutIds) = {
+    def getQueryArchIds(withIds, withoutIds, lastChangeVersion) = {
       if (lastChangeVersion < changeVersion) {
         val matching = resizableArray(4);
         archs.arr.foreachIndex() { (i, archOpt)
-          archOpt match {
-            case Some(arch) => {
-              val archCompIds = arch.componentIndices;
-              if (archCompIds.containsAll(withIds.keys()) && archCompIds.containsNone(withoutIds.keys())) {
-                matching.add();
-              }
-              ()
+          archOpt.map() { arch =>
+            val archCompIds = arch.componentIndices;
+            if (archCompIds.containsAll(withIds.keys()) && archCompIds.containsNone(withoutIds.keys())) {
+              matching.add();
             }
-            case None() => ()
-          }
+            ()
+          };
         };
-        Some(matching)
+        Some((matching, changeVersion))
       } else {
         None()
       }
@@ -397,36 +386,247 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
   }
 }
 
-def entityManager() { prog: => Unit / EntityManager }: Unit / ArchManager = {
-  var entityDatas: Map[Int, EntityData] = emptyMap();
+def entityIdManager() { prog: => Unit / EntityIdManager }: Unit = {
   var lastEntityId = 0;
-  def nextEntityId() = {
-    lastEntityId = lastEntityId + 1;
-    lastEntityId
-  }
   try {
     prog();
-  } with EntityManager {
-
+  } with EntityIdManager {
+    def nextEntityId() = {
+      lastEntityId = lastEntityId + 1;
+      lastEntityId
+    }
   }
 }
 
-def systemEntityManager() { prog: => Unit / EntityManager }: Unit / EntityManager = {
+def entityManager() { prog: Map[Int, EntityData] => Unit / EntityManager }: Unit / { ArchManager, EntityIdManager } = {
+  var entityDatas: Map[Int, EntityData] = emptyMap();
+  def getEntityData(entity: Entity): Entitiy / ECSException = {
+    entityDatas.get(entity).getOrElse() {
+      do invalidEntity(entity);
+    }
+  }
+  try {
+    prog(entityDatas);
+  } with EntityManager {
+    def hasEntity(entity) = {
+      resume(entityDatas.get(entity).isDefined())
+    }
+    def hasComponent[T](entity) = {
+      resume {
+        val entityData = getEntityData(entity);
+        do hasComponent(entityData.archId, do getComponentId())
+      }
+    }
+    def getEntityData(entity) = {
+      resume {
+        getEntityData(entity)
+      }
+    }
+    def createEntity() = {
+      val entity = Entitiy(do nextEntityId());
+      entityDatas.update(entity, do addEntity(entity));
+      resume(entity)
+    }
+    def destroyEntity(entity) = {
+      resume {
+        val entityData = getEntityData(entity);
+        do removeSwapEntity(entityData).map() { swappedEntity =>
+          entityDatas.update(swappedEntity, entityData);
+        };
+        entityDatas.delete(entity);
+      }
+    }
+    def addComponent[T](entity, value) = {
+      resume {
+        val compId = do getComponentId();
+        val compIndex = do addComponent(value);
+        val entityData = getEntityData(entity);
+        val (newEntityData, swapped) = do addExistingComponent(entityData, compId, compIndex);
+        entityDatas.update(entity, newEntityData);
+        swapped.map() { swappedEntity =>
+          entityDatas.update(swappedEntity, entityData);
+        };
+      }
+    }
+    def removeComponent[T](entity) = {
+      resume {
+        val compId = do getComponentId();
+        val entityData = getEntityData(entity);
+        val (newEntityData, swapped) = do removeComponent(entityData, compId);
+        entityDatas.update(entity, newEntityData);
+        swapped.map() { swappedEntity =>
+          entityDatas.update(swappedEntity, entityData);
+        };
+      }
+    }
+    def getComponent[T](entity) = {
+      resume {
+        val entityData = getEntityData(entity);
+        (do getComponent(entityData)).getOrElse() {
+          do invalidComponent(entity, do getComponentId());
+        }
+      }
+    }
+    def setComponent[T](entity, value) = {
+      resume {
+        val entityData = getEntityData(entity);
+        (do setComponent(entityData, value)).getOrElse() {
+          do invalidComponent(entity, do getComponentId());
+        }
+      }
+    }
+  }
+}
+
+def systemEntityManager(entityDatas: Map[Int, EntityData]) { prog: => Unit / EntityManager }: Unit / { EntityIdManager, EntityManager } = {
   try {
     prog();
   } with EntityManager {
-
+    def hasEntity(entity) = {
+      resume(do hasEntity(entity))
+    }
+    def hasComponent[T](entity) = {
+      resume{
+        do hasComponent[T](entity)
+      }
+    }
+    def getEntityData(entity) = {
+      resume(do getEntityData(entity))
+    }
+    def createEntity() = {
+      val entity = Entitiy(do nextEntityId());
+      resume(entity)
+      entityDatas.update(entity, do addEntity(entity));
+    }
+    def destroyEntity(entity) = {
+      resume(())
+      do destroyEntity(entity);
+    }
+    def addComponent[T](entity, value) = {
+      var compId = 0;
+      var compIndex = 0;
+      resume {
+        compId = do getComponentId();
+        compIndex = do addComponent(value);
+      }
+      try {
+        val entityData = do getEntityData(entity);
+        val (newEntityData, swapped) = do addExistingComponent(entityData, compId, compIndex);
+        entityDatas.update(entity, newEntityData);
+        swapped.map() { swappedEntity =>
+          entityDatas.update(swappedEntity, entityData);
+        };
+      } with ECSException {
+        def invalidEntity(entity) = {
+          do removeComponent(compId, compIndex);
+          do invalidEntity(entity);
+        }
+        def invalidComponent(entity, componentId) = {
+          do removeComponent(compId, compIndex);
+          do invalidComponent(entity, componentId);
+        }
+      }
+    }
+    def removeComponent[T](entity) = {
+      var compId = 0;
+      resume {
+        compId = do getComponentId();
+      }
+      val entityData = do getEntityData(entity);
+      val (newEntityData, swapped) = do removeComponent(entityData, compId);
+      entityDatas.update(entity, newEntityData);
+      swapped.map() { swappedEntity =>
+        entityDatas.update(swappedEntity, entityData);
+      };
+    }
+    def getComponent[T](entity) = {
+      resume {
+        do getComponent(entity)
+      }
+    }
+    def setComponent[T](entity, value) = {
+      resume {
+        do setComponent(entity, value);
+      }
+    }
   }
 }
 
 def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
+  def addC[A, T, With, Without](
+    query: Query[T, With, Without] at { global, io }
+  ): Query[(T, A), With, Without] at { global, io } = {
+    new Query[(T, A), With, Without] {
+      def addC[C]() = {
+        addC[C, (T, A), With, Without]()            
+      }
+      def withC[C]() = {
+        withC[C, T, (With, A), Without]()            
+      }
+      def withoutC[C]() = {
+        withoutC[C, T, With, (Without, A)]()            
+      }
+      def getWithWithoutIds() = {
+        (withIds, withoutIds)
+      }
+    }
+  }
   try {
     prog();
   } with QueryManager {
-    def query() = {
-      new Query[Unit, Unit, Unit] {
-
+    def query[T]() = {
+      val compId = do getComponentId();
+      var matchingArchIds = resizableArray(0);
+      var lastChangeVersion = 0;
+      val withIds = emptyMap();
+      val withoutIds = emptyMap();
+      withIds.update(compId, ());
+      def iterRO() { prog: => Unit / read[T] }: Unit / stop = {
+        (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
+          matchingArchIds = matches;
+          lastChangeVersion = changeVersion;
+        };
+        matchingArchIds.foreach() { archId =>
+          with iterComponentIndices
+        };
+        try {
+          prog();
+        } with read[T] {
+        }
       }
+      def iterRO() { prog: => Unit / { read[T], emit[T] } }: Unit / stop = {
+        (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
+          matchingArchIds = matches;
+          lastChangeVersion = changeVersion;
+        };
+      }
+      resume(
+        new Query[T, Unit, Unit] {
+          def addC[C]() = {
+            addC[C, T, Unit, Unit]()            
+          }
+          def withC[C]() = {
+            withC[C, T, Unit, Unit]()            
+          }
+          def withoutC[C]() = {
+            withoutC[C, T, Unit, Unit]()            
+          }
+          def foreachRO() { action } = {
+          }
+          def foreachRW() { action } = {
+            ()
+          }
+          def iterRO() { prog } = {
+            iterRO() { prog };
+          }
+          def iterRW( prog ) = {
+            iterRW() { prog };
+          }
+          def getWithWithoutIds() = {
+            (withIds, withoutIds)
+          }
+        }
+      )
     }
   }
 }
@@ -435,7 +635,8 @@ def world() { prog: => Unit / { Resource[RunWorld], World } }: Unit = {
   with createResource[RunWorld](RunWorld(true));
   with componentManager();
   with archManager();
-  with entityManager();
+  with entityIdManager();
+  with val entityDatas = entityManager();
   with queryManager();
   var system = new System {
     def step() = {
@@ -471,51 +672,12 @@ def world() { prog: => Unit / { Resource[RunWorld], World } }: Unit = {
         system = new System {
           def step() = {
             system.step();
-            systemEntityManager() {
+            systemEntityManager(entityDatas) {
               body();
             };
           }
         }
       }
-    }
-    def hasEntity(entity) = {
-      resume(do hasEntity(entity))
-    }
-    def hasComponent(entity, componentId) = {
-      resume(do hasComponent(entity, componentId))
-    }
-    def createEntity() = {
-      resume(do createEntity())
-    }
-    def destroyEntity(entity) = {
-      do destroyEntity(entity);
-      resume(())
-    }
-    def addComponent[T](entity, value) = {
-      resume {
-        do addComponent(entity, value);
-      }
-    }
-    def removeComponent[T](entity) = {
-      resume {
-        do removeComponent(entity);
-      }
-    }
-    def getComponent[T](entity) = {
-      resume {
-        do getComponent(entity)
-      }
-    }
-    def setComponent[T](entity, value) = {
-      resume {
-        do setComponent(entity, value);
-      }
-    }
-    def getQueryArchIds(lastChangeVersion, withIds, withoutIds) = {
-      resume(do getQueryArchIds(lastChangeVersion, withIds, withoutIds))
-    }
-    def query() = {
-      resume(do query())
     }
   }
 }
