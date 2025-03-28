@@ -652,12 +652,12 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
         addC[C, (T, A), With, Without]()            
       }
       def withC[C]() = {
-        withC[C, T, (With, A), Without]()            
+        withC[C, (T, A), With, Without]()            
       }
       def withoutC[C]() = {
-        withoutC[C, T, With, (Without, A)]()            
+        withoutC[C, (T, A), With, Without]()            
       }
-      def foreachRO() { action } = {
+      def foreachRO() { action: (Entity, (T, A)) => Unit } = {
         updateQuery();
         try {
           with do iterEntities(matchingArchIds, false);
@@ -670,7 +670,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           ()
         }
       }
-      def foreachRW() { action } = {
+      def foreachRW() { action: (Entity, (T, A)) => (T, A) } = {
         updateQuery();
         try {
           with do iterEntities(matchingArchIds, false);
@@ -685,7 +685,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           ()
         }
       }
-      def iterRO() { prog } = {
+      def iterRO() { prog: => Unit / read[(T, A)] } = {
         with do iterRO(matchingArchIds);
         with query.iterRO();
         try {
@@ -694,7 +694,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           (do read(), do read())
         }
       }
-      def iterRW( prog ) = {
+      def iterRW() { prog: => Unit / { read[(T, A)], emit[(T, A)] } } = {
         with do iterRW(matchingArchIds);
         with query.iterRW();
         try {
@@ -705,6 +705,76 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           do emit(value.first);
           do emit(value.second);
         }
+      }
+      def getWithWithoutIds() = {
+        (withIds, withoutIds)
+      }
+    }
+  }
+  def withC[A, T, With, Without](
+    query: Query[T, With, Without] at { global, io }
+  ): Query[T, (With, A), Without] at { global, io } / Component[A] = {
+    val compId = do getComponentId[A]();
+    var matchingArchIds = resizableArray(0);
+    var lastChangeVersion = 0;
+    val (withIds, withoutIds) = query.getWithWithoutIds();
+    withIds.update(compId, ());
+    new Query[(T, A), With, Without] {
+      def addC[C]() = {
+        addC[C, T, (With, A), Without]()            
+      }
+      def withC[C]() = {
+        withC[C, T, (With, A), Without]()            
+      }
+      def withoutC[C]() = {
+        withoutC[C, T, (With, A), Without]()            
+      }
+      def foreachRO() { action: (Entity, T) => Unit } = {
+        query.foreachRO() { action };
+      }
+      def foreachRW() { action: (Entity, T) => T } = {
+        query.foreachRW() { action };
+      }
+      def iterRO() { prog: => Unit / read[T] } = {
+        query.iterRO() { prog };
+      }
+      def iterRW() { prog: => Unit / { read[T], emit[T] } } = {
+        query.iterRW() { prog };
+      }
+      def getWithWithoutIds() = {
+        (withIds, withoutIds)
+      }
+    }
+  }
+  def withoutC[A, T, With, Without](
+    query: Query[T, With, Without] at { global, io }
+  ): Query[T, With, (Without, A)] at { global, io } / Component[A] = {
+    val compId = do getComponentId[A]();
+    var matchingArchIds = resizableArray(0);
+    var lastChangeVersion = 0;
+    val (withIds, withoutIds) = query.getWithWithoutIds();
+    withoutIds.update(compId, ());
+    new Query[(T, A), With, Without] {
+      def addC[C]() = {
+        addC[C, T, With, (Without, A)]()            
+      }
+      def withC[C]() = {
+        withC[C, T, With, (Without, A)]()            
+      }
+      def withoutC[C]() = {
+        withoutC[C, T, With, (Without, A)]()            
+      }
+      def foreachRO() { action: (Entity, T) => Unit } = {
+        query.foreachRO() { action };
+      }
+      def foreachRW() { action: (Entity, T) => T } = {
+        query.foreachRW() { action };
+      }
+      def iterRO() { prog: => Unit / read[T] } = {
+        query.iterRO() { prog };
+      }
+      def iterRW() { prog: => Unit / { read[T], emit[T] } } = {
+        query.iterRW() { prog };
       }
       def getWithWithoutIds() = {
         (withIds, withoutIds)
@@ -766,7 +836,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
             with do iterRO(matchingArchIds);
             prog();
           }
-          def iterRW( prog ) = {
+          def iterRW() { prog } = {
             with do iterRW(matchingArchIds);
             prog();
           }
