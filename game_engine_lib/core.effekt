@@ -11,11 +11,16 @@ def optionArray[T](initialCapacity: Int): OptionArray[T] = {
   OptionArray(resizableArray(initialCapacity), resizableArray(4))
 }
 
-def unsafeGet[T](optionArray: OptionArray[T], index: Int): T = {
-  optionArray.arr.unsafeGet(index) match {
-    case Some(value) => value
-    case None() => panic("OptionArray unsafeGet has no value at index " ++ index.show() ++ "!")
+def get[T](optionArray: OptionArray[T], index: Int): Option[T] = {
+  if (index >= optionArray.arr.size() || index < 0) {
+    None()
+  } else {
+    optionArray.arr.unsafeGet(index);
   }
+}
+
+def unsafeGet[T](optionArray: OptionArray[T], index: Int): T = {
+  optionArray.arr.unsafeGet(index).value()
 }
 
 def unsafeSet[T](optionArray: OptionArray[T], index: Int, value: T): Unit = {
