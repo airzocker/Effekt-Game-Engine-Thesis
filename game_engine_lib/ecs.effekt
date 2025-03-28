@@ -54,7 +54,7 @@ interface ArchManager {
   def setComponent[T](entityData: EntityData, value: T): Option[(EntityData, Option[Entity])] / Component[T]
   def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
   def removeComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
-  def iterEntities(archIds: ResizableArray[Int]) { prog: => Unit / read[Entity] }: Unit / stop
+  def iterEntities(archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Entity] }: Unit / stop
   def iterRO[T](archIds: ResizableArray[Int]) { prog: => Unit / read[T] }: Unit / { Component[T], stop }
   def iterRW[T](archIds: ResizableArray[Int]) { prog: => Unit / { read[T], emit[T] } }: Unit / { Component[T], stop }
   def getQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
@@ -88,7 +88,7 @@ interface Query[T, With, Without] {
 }
 
 interface QueryManager {
-  def query[T](): Query[T, Unit, Unit] at { global, io } 
+  def query[T](): Query[T, Unit, Unit] at { global, io } / Component[T]
 }
 
 interface System {
@@ -327,9 +327,9 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         )
       }
     }
-    def iterEntities(archIds) = {
+    def iterEntities(archIds, iterAll) = {
       resume { { prog } =>
-        if (archIds.size() == 0) {
+        if (archIds.size() == 0 && not(iterAll)) {
           try {
             prog();
           } with read[Entity] {
@@ -337,7 +337,11 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
           }
         }
         var archIndex = 0;
-        var entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
+        var entities = if (iterAll) {
+          archs.unsafeGet(archIndex).entities
+        } else {
+          archs.unsafeGet(archIds.unsafeGet(archIndex)).entities
+        };
         var index = 0;
         try {
           prog();
@@ -345,12 +349,28 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
           resume {
             while (index >= entities.size()) {
               index = 0;
-              archIndex = archIndex + 1;
-              if (archIndex >= archIds.size()) {
-                do stop()
+              if (iterAll) {
+                loop { l } {
+                  archIndex = archIndex + 1;
+                  if (archIndex >= archs.size()) {
+                    do stop()
+                  } else {
+                    entities = archs.get(archIndex).map() { arch =>
+                      arch.entities
+                    }.getOrElse() {
+                      l.continue();
+                    };
+                    l.break();
+                  }
+                }
               } else {
-                entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
-              }             
+                archIndex = archIndex + 1;
+                if (archIndex >= archIds.size()) {
+                  do stop()
+                } else {
+                  entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
+                }
+              }
             }
             index = index + 1;
             entities.unsafeGet(index - 1)
@@ -621,7 +641,12 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
 def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
   def addC[A, T, With, Without](
     query: Query[T, With, Without] at { global, io }
-  ): Query[(T, A), With, Without] at { global, io } = {
+  ): Query[(T, A), With, Without] at { global, io } / Component[A] = {
+    val compId = do getComponentId[A]();
+    var matchingArchIds = resizableArray(0);
+    var lastChangeVersion = 0;
+    val (withIds, withoutIds) = query.getWithWithoutIds();
+    withIds.update(compId, ());
     new Query[(T, A), With, Without] {
       def addC[C]() = {
         addC[C, (T, A), With, Without]()            
@@ -631,6 +656,55 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
       }
       def withoutC[C]() = {
         withoutC[C, T, With, (Without, A)]()            
+      }
+      def foreachRO() { action } = {
+        updateQuery();
+        try {
+          with do iterEntities(matchingArchIds, false);
+          with do iterRO(matchingArchIds);
+          with query.iterRO();
+          loop {
+            action(do read(), (do read(), do read()));
+          }
+        } with stop {
+          ()
+        }
+      }
+      def foreachRW() { action } = {
+        updateQuery();
+        try {
+          with do iterEntities(matchingArchIds, false);
+          with do iterRW(matchingArchIds);
+          with query.iterRW();
+          loop {
+            val value = action(do read(), (do read(), do read()));
+            do emit(value.first);
+            do emit(value.second);
+          }
+        } with stop {
+          ()
+        }
+      }
+      def iterRO() { prog } = {
+        with do iterRO(matchingArchIds);
+        with query.iterRO();
+        try {
+          prog();
+        } with read[(T, A)] {
+          (do read(), do read())
+        }
+      }
+      def iterRW( prog ) = {
+        with do iterRW(matchingArchIds);
+        with query.iterRW();
+        try {
+          prog();
+        } with read[(T, A)] {
+          (do read(), do read())
+        } with emit[(T, A)] { value =>
+          do emit(value.first);
+          do emit(value.second);
+        }
       }
       def getWithWithoutIds() = {
         (withIds, withoutIds)
@@ -667,7 +741,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRO() { action } = {
             updateQuery();
             try {
-              with do iterEntities(matchingArchIds);
+              with do iterEntities(matchingArchIds, false);
               with do iterRO(matchingArchIds);
               loop {
                 action(do read(), do read());
@@ -679,7 +753,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRW() { action } = {
             updateQuery();
             try {
-              with do iterEntities(matchingArchIds);
+              with do iterEntities(matchingArchIds, false);
               with do iterRW(matchingArchIds);
               loop {
                 do emit(action(do read(), do read()));
