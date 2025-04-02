@@ -18,7 +18,7 @@ record Arch(componentIndices: Map[Int, ResizableArray[Int]], entities: Resizable
 // Resource to signal world loop exit
 record RunWorld(run: Bool)
 
-type ComponentOps {
+type ComponentOp {
   Remove[T](componentStore: Ref[OptionArray[T]])
   Copy[T](componentStore: Ref[OptionArray[T]])
 }
@@ -87,9 +87,9 @@ interface Query[T, With, Without] {
 }
 
 interface QueryManager {
-  def query[T](): Query[T, Unit, Unit] at { global, io } / Component[T]
-  def optQuery[T](): Query[Option[T], Unit, Unit] at { global, io } / Component[T]
-  def allQuery(): Query[Unit, Unit, Unit] at { global, io }
+  def query[T]() { prog: => Unit / Query[T, Unit, Unit] }: Unit / Component[T]
+  def optQuery[T]() { prog: => Unit / Query[Option[T], Unit, Unit] }: Unit / Component[T]
+  def allQuery() { prog: => Unit / Query[Unit, Unit, Unit] }: Unit
 }
 
 interface System {
@@ -835,9 +835,10 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
   }
 }
 
-def addC[A, T, With, Without](
-  query: Query[T, With, Without] at { global, io }
-): Query[(T, A), With, Without] at { global, io } / { ArchManager, QueryManager, Component[A] } = {
+def addC[A, T, With, Without]()
+{ query: Query[T, With, Without] }
+{ prog: => Unit / Query[(T, A), With, Without] }: Unit /
+{ ArchManager, QueryManager, Component[A] } = {
   val compId = do getComponentId[A]();
   var matchingArchIds = resizableArray(0);
   var lastChangeVersion = 0;
@@ -848,195 +849,238 @@ def addC[A, T, With, Without](
       matchingArchIds = result.first;
       lastChangeVersion = result.second;
     };
+    ()
   }
-  new Query[(T, A), With, Without] {
-    def foreachRO() { action: (Entity, (T, A)) => Unit } = {
-      updateQuery();
-      try {
-        with do iterEntities(matchingArchIds, false);
+  try {
+    prog();
+  } with Query[(T, A), With, Without] {
+    def foreachRO() = {
+      resume { { action } =>
+        updateQuery();
+        try {
+          with do iterEntities(matchingArchIds, false);
+          with query.iterRO();
+          with do iterRO[A](matchingArchIds);
+          loop {
+            action(do read(), (do read(), do read()));
+          }
+        } with stop {
+          ()
+        }
+      }
+    }
+    def foreachRW() = {
+      resume { { action } =>
+        updateQuery();
+        try {
+          with do iterEntities(matchingArchIds, false);
+          with query.iterRW();
+          with do iterRW[A](matchingArchIds);
+          loop {
+            val value = action(do read(), (do read(), do read()));
+            do emit(value.first);
+            do emit(value.second);
+          }
+        } with stop {
+          ()
+        }
+      }
+    }
+    def iterRO() = {
+      resume { { prog } =>
         with query.iterRO();
         with do iterRO[A](matchingArchIds);
-        loop {
-          action(do read(), (do read(), do read()));
+        try {
+          prog();
+        } with read[(T, A)] {
+          resume {
+            (do read(), do read())
+          }
         }
-      } with stop {
-        ()
       }
     }
-    def foreachRW() { action: (Entity, (T, A)) => (T, A) } = {
-      updateQuery();
-      try {
-        with do iterEntities(matchingArchIds, false);
+    def iterRW() = {
+      resume { { prog } =>
         with query.iterRW();
         with do iterRW[A](matchingArchIds);
-        loop {
-          val value = action(do read(), (do read(), do read()));
+        try {
+          prog();
+        } with read[(T, A)] {
+          resume {
+            (do read(), do read())
+          }
+        } with emit[(T, A)] { value =>
           do emit(value.first);
           do emit(value.second);
+          resume(())
         }
-      } with stop {
-        ()
-      }
-    }
-    def iterRO() { prog: => Unit / read[(T, A)] } = {
-      with query.iterRO();
-      with do iterRO[A](matchingArchIds);
-      try {
-        prog();
-      } with read[(T, A)] {
-        resume {
-          (do read(), do read())
-        }
-      }
-    }
-    def iterRW() { prog: => Unit / { read[(T, A)], emit[(T, A)] } } = {
-      with query.iterRW();
-      with do iterRW[A](matchingArchIds);
-      try {
-        prog();
-      } with read[(T, A)] {
-        resume {
-          (do read(), do read())
-        }
-      } with emit[(T, A)] { value =>
-        do emit(value.first);
-        do emit(value.second);
-        resume(())
       }
     }
     def getWithWithoutIds() = {
-      (withIds, withoutIds)
+      resume((withIds, withoutIds))
     }
   }
 }
 
-def addOptC[A, T, With, Without](
-  query: Query[T, With, Without] at { global, io }
-): Query[(T, Option[A]), With, Without] at { global, io } / { ArchManager, QueryManager, Component[A] } = {
+def addOptC[A, T, With, Without]()
+  { query: Query[T, With, Without] }
+  { prog: => Unit / Query[(T, Option[A]), With, Without] }: Unit /
+  { ArchManager, QueryManager, Component[A] } = {
   var matchingArchIds = resizableArray(0);
   var lastChangeVersion = 0;
   val (withIds, withoutIds) = query.getWithWithoutIds();
   def updateQuery() = {
-    (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
-      matchingArchIds = matches;
-      lastChangeVersion = changeVersion;
+    (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
+      matchingArchIds = result.first;
+      lastChangeVersion = result.second;
     };
+    ()
   }
-  new Query[(T, Option[A]), With, Without] {
-    def foreachRO() { action: (Entity, (T, Option[A])) => Unit } = {
-      if (withIds.size() > 0) {
-        updateQuery();
-      }
-      try {
-        with do iterEntities(matchingArchIds, withIds.size() == 0);
-        with query.iterRO();
-        with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
-        loop {
-          action(do read(), (do read(), do read()));
+  try {
+    prog();
+  } with Query[(T, Option[A]), With, Without] {
+    def foreachRO() = {
+      resume { { action } =>
+        if (withIds.size() > 0) {
+          updateQuery();
         }
-      } with stop {
-        ()
+        try {
+          with do iterEntities(matchingArchIds, withIds.size() == 0);
+          with query.iterRO();
+          with do iterOptRO[A](matchingArchIds, withIds.size() == 0);
+          loop {
+            action(do read(), (do read(), do read()));
+          }
+        } with stop {
+          ()
+        }
       }
     }
-    def foreachRW() { action: (Entity, (T, Option[A])) => (T, Option[A]) } = {
-      if (withIds.size() > 0) {
-        updateQuery();
+    def foreachRW() = {
+      resume { { action } =>
+        if (withIds.size() > 0) {
+          updateQuery();
+        }
+        try {
+          with do iterEntities(matchingArchIds, withIds.size() == 0);
+          with query.iterRW();
+          with do iterOptRW[A](matchingArchIds, withIds.size() == 0);
+          loop {
+            val value = action(do read(), (do read(), do read()));
+            do emit(value.first);
+            do emit(value.second);
+          }
+        } with stop {
+          ()
+        }
       }
-      try {
-        with do iterEntities(matchingArchIds, withIds.size() == 0);
+    }
+    def iterRO() = {
+      resume { { prog } =>
+        with query.iterRO();
+        with do iterOptRO[A](matchingArchIds, withIds.size() == 0);
+        try {
+          prog();
+        } with read[(T, Option[A])] {
+          resume {
+            (do read(), do read())
+          }
+        }
+      }
+    }
+    def iterRW() = {
+      resume { { prog } =>
         with query.iterRW();
-        with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
-        loop {
-          val value = action(do read(), (do read(), do read()));
+        with do iterOptRW[A](matchingArchIds, withIds.size() == 0);
+        try {
+          prog();
+        } with read[(T, Option[A])] {
+          resume {
+            (do read(), do read())
+          }
+        } with emit[(T, Option[A])] { value =>
           do emit(value.first);
           do emit(value.second);
+          resume(())
         }
-      } with stop {
-        ()
-      }
-    }
-    def iterRO() { prog: => Unit / read[Option[A]] } = {
-      with query.iterRO();
-      with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
-      try {
-        prog();
-      } with read[(T, A)] {
-        resume {
-          (do read(), do read())
-        }
-      }
-    }
-    def iterRW() { prog: => Unit / { read[Option[A]], emit[Option[A]] } } = {
-      with query.iterRW();
-      with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
-      try {
-        prog();
-      } with read[(T, A)] {
-        resume {
-          (do read(), do read())
-        }
-      } with emit[(T, A)] { value =>
-        do emit(value.first);
-        do emit(value.second);
-        resume(())
       }
     }
     def getWithWithoutIds() = {
-      (withIds, withoutIds)
+      resume((withIds, withoutIds))
     }
   }
 }
 
-def withC[A, T, With, Without](
-  query: Query[T, With, Without] at { global, io }
-): Query[T, (With, A), Without] at { global, io } / Component[A] = {
+def withC[A, T, With, Without]()
+  { query: Query[T, With, Without] }
+  { prog: => Unit / Query[T, (With, A), Without] }: Unit / Component[A] = {
   val compId = do getComponentId[A]();
-  var matchingArchIds = resizableArray(0);
+  var matchingArchIds: ResizableArray[Int] = resizableArray(0);
   var lastChangeVersion = 0;
   val (withIds, withoutIds) = query.getWithWithoutIds();
   withIds.update(compId, ());
-  new Query[T, (With, A), Without] {
-    def foreachRO() { action: (Entity, T) => Unit } = {
-      query.foreachRO() { action };
+  try {
+    prog();
+  } with Query[T, (With, A), Without] {
+    def foreachRO() = {
+      resume { { action } =>
+        query.foreachRO() { action };
+      }
     }
-    def foreachRW() { action: (Entity, T) => T } = {
-      query.foreachRW() { action };
+    def foreachRW() = {
+      resume { { action } =>
+        query.foreachRW() { action };
+      }
     }
-    def iterRO() { prog: => Unit / read[T] } = {
-      query.iterRO() { prog };
+    def iterRO() = {
+      resume { { prog } =>
+        query.iterRO() { prog };
+      }
     }
-    def iterRW() { prog: => Unit / { read[T], emit[T] } } = {
-      query.iterRW() { prog };
+    def iterRW() = {
+      resume { { prog } =>
+        query.iterRW() { prog };
+      }
     }
     def getWithWithoutIds() = {
-      (withIds, withoutIds)
+      resume((withIds, withoutIds))
     }
   }
 }
 
-def withoutC[A, T, With, Without](
-  query: Query[T, With, Without] at { global, io }
-): Query[T, With, (Without, A)] at { global, io } / Component[A] = {
+def withoutC[A, T, With, Without]()
+  { query: Query[T, With, Without] }
+  { prog: => Unit / Query[T, With, (Without, A)] }: Unit / Component[A] = {
   val compId = do getComponentId[A]();
-  var matchingArchIds = resizableArray(0);
+  var matchingArchIds: ResizableArray[Int] = resizableArray(0);
   var lastChangeVersion = 0;
   val (withIds, withoutIds) = query.getWithWithoutIds();
   withoutIds.update(compId, ());
-  new Query[T, With, (Without, A)] {
-    def foreachRO() { action: (Entity, T) => Unit } = {
-      query.foreachRO() { action };
+  try {
+    prog();
+  } with Query[T, With, (Without, A)] {
+    def foreachRO() = {
+      resume { { action } =>
+        query.foreachRO() { action };
+      }
     }
-    def foreachRW() { action: (Entity, T) => T } = {
-      query.foreachRW() { action };
+    def foreachRW() = {
+      resume { { action } =>
+        query.foreachRW() { action };
+      }
     }
-    def iterRO() { prog: => Unit / read[T] } = {
-      query.iterRO() { prog };
+    def iterRO() = {
+      resume { { prog } =>
+        query.iterRO() { prog };
+      }
     }
-    def iterRW() { prog: => Unit / { read[T], emit[T] } } = {
-      query.iterRW() { prog };
+    def iterRW() = {
+      resume { { prog } =>
+        query.iterRW() { prog };
+      }
     }
     def getWithWithoutIds() = {
-      (withIds, withoutIds)
+      resume((withIds, withoutIds))
     }
   }
 }
@@ -1046,149 +1090,180 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
     prog();
   } with QueryManager {
     def query[T]() = {
-      val compId = do getComponentId();
-      var matchingArchIds = resizableArray(0);
-      var lastChangeVersion = 0;
-      val withIds = emptyMap();
-      val withoutIds = emptyMap();
-      withIds.update(compId, ());
-      def updateQuery() = {
-        (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { (matches, changeVersion) =>
-          matchingArchIds = matches;
-          lastChangeVersion = changeVersion;
-        };
-      }
-      resume(
-        new Query[T, Unit, Unit] {
-          def foreachRO() { action } = {
-            updateQuery();
-            try {
-              with do iterEntities(matchingArchIds, false);
-              with do iterRO(matchingArchIds);
-              loop {
-                action(do read(), do read());
+      resume { { prog } =>
+        val compId = do getComponentId[T]();
+        var matchingArchIds = resizableArray(0);
+        var lastChangeVersion = 0;
+        val withIds = emptyMap();
+        val withoutIds = emptyMap();
+        withIds.update(compId, ());
+        def updateQuery() = {
+          (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
+            matchingArchIds = result.first;
+            lastChangeVersion = result.second;
+          };
+          ()
+        }
+        try {
+          prog();
+        } with Query[T, Unit, Unit] {
+          def foreachRO() = {
+            resume { { action } =>
+              updateQuery();
+              try {
+                with do iterEntities(matchingArchIds, false);
+                with do iterRO[T](matchingArchIds);
+                loop {
+                  action(do read(), do read());
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def foreachRW() { action } = {
-            updateQuery();
-            try {
-              with do iterEntities(matchingArchIds, false);
-              with do iterRW(matchingArchIds);
-              loop {
-                do emit(action(do read(), do read()));
+          def foreachRW() = {
+            resume { { action } =>
+              updateQuery();
+              try {
+                with do iterEntities(matchingArchIds, false);
+                with do iterRW[T](matchingArchIds);
+                loop {
+                  do emit(action(do read(), do read()));
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def iterRO() { prog } = {
-            with do iterRO(matchingArchIds);
-            prog();
+          def iterRO() = {
+            resume { { prog } =>
+              with do iterRO[T](matchingArchIds);
+              prog();
+            }
           }
-          def iterRW() { prog } = {
-            with do iterRW(matchingArchIds);
-            prog();
+          def iterRW() = {
+            resume { { prog } =>
+              with do iterRW[T](matchingArchIds);
+              prog();
+            }
           }
           def getWithWithoutIds() = {
-            (withIds, withoutIds)
+            resume((withIds, withoutIds))
           }
         }
-      )
+      }
     }
     def optQuery[T]() = {
-      var matchingArchIds = resizableArray(0);
-      var lastChangeVersion = 0;
-      val withIds = emptyMap();
-      val withoutIds = emptyMap();
-      resume(
-        new Query[Option[T], Unit, Unit] {
-          def foreachRO() { action } = {
-            try {
-              with do iterEntities(matchingArchIds, true);
-              with do iterOptRO(matchingArchIds, true);
-              loop {
-                action(do read(), do read());
+      resume { { prog } =>
+        var matchingArchIds = resizableArray(0);
+        var lastChangeVersion = 0;
+        val withIds = emptyMap();
+        val withoutIds = emptyMap();
+        try {
+          prog();
+        } with Query[Option[T], Unit, Unit] {
+          def foreachRO() = {
+            resume { { action } =>
+              try {
+                with do iterEntities(matchingArchIds, true);
+                with do iterOptRO[T](matchingArchIds, true);
+                loop {
+                  action(do read(), do read());
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def foreachRW() { action } = {
-            try {
-              with do iterEntities(matchingArchIds, true);
-              with do iterOptRW(matchingArchIds, true);
-              loop {
-                do emit(action(do read(), do read()));
+          def foreachRW() = {
+            resume { { action } =>
+              try {
+                with do iterEntities(matchingArchIds, true);
+                with do iterOptRW[T](matchingArchIds, true);
+                loop {
+                  do emit(action(do read(), do read()));
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def iterRO() { prog } = {
-            with do iterOptRO(matchingArchIds, true);
-            prog();
+          def iterRO() = {
+            resume { { prog } =>
+              with do iterOptRO[T](matchingArchIds, true);
+              prog();
+            }
           }
-          def iterRW() { prog } = {
-            with do iterOptRW(matchingArchIds, true);
-            prog();
+          def iterRW() = {
+            resume { { prog } =>
+              with do iterOptRW[T](matchingArchIds, true);
+              prog();
+            }
           }
           def getWithWithoutIds() = {
-            (withIds, withoutIds)
+            resume((withIds, withoutIds))
           }
         }
-      )
+      }
     }
-    def allQuery[T]() = {
-      var matchingArchIds = resizableArray(0);
-      var lastChangeVersion = 0;
-      val withIds = emptyMap();
-      val withoutIds = emptyMap();
-      resume(
-        new Query[Unit, Unit, Unit] {
-          def foreachRO() { action } = {
-            try {
-              with do iterEntities(matchingArchIds, true);
-              loop {
-                action(do read(), ());
+    def allQuery() = {
+      resume { { prog } =>
+        var matchingArchIds = resizableArray(0);
+        var lastChangeVersion = 0;
+        val withIds = emptyMap();
+        val withoutIds = emptyMap();
+        try {
+          prog();
+        } with  Query[Unit, Unit, Unit] {
+          def foreachRO() = {
+            resume { { action } =>
+              try {
+                with do iterEntities(matchingArchIds, true);
+                loop {
+                  action(do read(), ());
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def foreachRW() { action } = {
-            try {
-              with do iterEntities(matchingArchIds, true);
-              loop {
-                action(do read(), ());
+          def foreachRW() = {
+            resume { { action } =>
+              try {
+                with do iterEntities(matchingArchIds, true);
+                loop {
+                  action(do read(), ());
+                }
+              } with stop {
+                ()
               }
-            } with stop {
-              ()
             }
           }
-          def iterRO() { prog } = {
-            try {
-              prog();
-            } with read[Unit] {
-              do stop();
+          def iterRO() = {
+            resume { { prog } =>
+              try {
+                prog();
+              } with read[Unit] {
+                do stop();
+              }
             }
           }
-          def iterRW() { prog } = {
-            try {
-              prog();
-            } with read[Unit] {
-              do stop();
-            } with emit[Unit] { _ =>
-              resume(())
+          def iterRW() = {
+            resume { { prog } =>
+              try {
+                prog();
+              } with read[Unit] {
+                do stop();
+              } with emit[Unit] { _ =>
+                resume(())
+              }
             }
           }
           def getWithWithoutIds() = {
-            (withIds, withoutIds)
+            resume((withIds, withoutIds))
           }
         }
-      )
+      }
     }
   }
 }
