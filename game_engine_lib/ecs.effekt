@@ -854,8 +854,8 @@ def addC[A, T, With, Without](
       updateQuery();
       try {
         with do iterEntities(matchingArchIds, false);
-        with do iterRO[A](matchingArchIds);
         with query.iterRO();
+        with do iterRO[A](matchingArchIds);
         loop {
           action(do read(), (do read(), do read()));
         }
@@ -867,8 +867,8 @@ def addC[A, T, With, Without](
       updateQuery();
       try {
         with do iterEntities(matchingArchIds, false);
-        with do iterRW[A](matchingArchIds);
         with query.iterRW();
+        with do iterRW[A](matchingArchIds);
         loop {
           val value = action(do read(), (do read(), do read()));
           do emit(value.first);
@@ -879,24 +879,29 @@ def addC[A, T, With, Without](
       }
     }
     def iterRO() { prog: => Unit / read[(T, A)] } = {
-      with do iterRO[A](matchingArchIds);
       with query.iterRO();
+      with do iterRO[A](matchingArchIds);
       try {
         prog();
       } with read[(T, A)] {
-        (do read(), do read())
+        resume {
+          (do read(), do read())
+        }
       }
     }
     def iterRW() { prog: => Unit / { read[(T, A)], emit[(T, A)] } } = {
-      with do iterRW[A](matchingArchIds);
       with query.iterRW();
+      with do iterRW[A](matchingArchIds);
       try {
         prog();
       } with read[(T, A)] {
-        (do read(), do read())
+        resume {
+          (do read(), do read())
+        }
       } with emit[(T, A)] { value =>
         do emit(value.first);
         do emit(value.second);
+        resume(())
       }
     }
     def getWithWithoutIds() = {
@@ -924,8 +929,8 @@ def addOptC[A, T, With, Without](
       }
       try {
         with do iterEntities(matchingArchIds, withIds.size() == 0);
-        with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
         with query.iterRO();
+        with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
         loop {
           action(do read(), (do read(), do read()));
         }
@@ -939,8 +944,8 @@ def addOptC[A, T, With, Without](
       }
       try {
         with do iterEntities(matchingArchIds, withIds.size() == 0);
-        with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
         with query.iterRW();
+        with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
         loop {
           val value = action(do read(), (do read(), do read()));
           do emit(value.first);
@@ -951,24 +956,29 @@ def addOptC[A, T, With, Without](
       }
     }
     def iterRO() { prog: => Unit / read[Option[A]] } = {
-      with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
       with query.iterRO();
+      with do iterOptRO[Option[A]](matchingArchIds, withIds.size() == 0);
       try {
         prog();
       } with read[(T, A)] {
-        (do read(), do read())
+        resume {
+          (do read(), do read())
+        }
       }
     }
     def iterRW() { prog: => Unit / { read[Option[A]], emit[Option[A]] } } = {
-      with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
       with query.iterRW();
+      with do iterOptRW[Option[A]](matchingArchIds, withIds.size() == 0);
       try {
         prog();
       } with read[(T, A)] {
-        (do read(), do read())
+        resume {
+          (do read(), do read())
+        }
       } with emit[(T, A)] { value =>
         do emit(value.first);
         do emit(value.second);
+        resume(())
       }
     }
     def getWithWithoutIds() = {
