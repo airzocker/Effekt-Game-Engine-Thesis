@@ -7,8 +7,17 @@ import stream
 
 record OptionArray[T](arr: ResizableArray[Option[T]], freeIndices: ResizableArray[Int])
 
+def unsafeValue[A](self: Option[A]): A = self match {
+  case None() => panic("Trying to get the value of an empty option")
+  case Some(v) => v
+}
+
 def optionArray[T](initialCapacity: Int): OptionArray[T] = {
   OptionArray(resizableArray(initialCapacity), resizableArray(4))
+}
+
+def size[T](optionArray: OptionArray[T]): Int = {
+  optionArray.arr.size()
 }
 
 def get[T](optionArray: OptionArray[T], index: Int): Option[T] = {
@@ -20,11 +29,11 @@ def get[T](optionArray: OptionArray[T], index: Int): Option[T] = {
 }
 
 def unsafeGet[T](optionArray: OptionArray[T], index: Int): T = {
-  optionArray.arr.unsafeGet(index).value()
+  optionArray.arr.unsafeGet(index).unsafeValue()
 }
 
 def unsafeSet[T](optionArray: OptionArray[T], index: Int, value: T): Unit = {
-  optionArray.arr.unsafeSet(index, value);
+  optionArray.arr.unsafeSet(index, Some(value));
 }
 
 def add[T](optionArray: OptionArray[T], value: T): Int = {
@@ -49,7 +58,7 @@ def remove[T](optionArray: OptionArray[T], index: Int): Unit = {
 def containsAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
   var contains = true;
   values.foreach() { (value) { l } =>
-    if (map.get(values).isDefined()) {
+    if (map.get(value).isDefined()) {
       l.continue();
     }
     contains = false;
@@ -61,7 +70,7 @@ def containsAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
 def containsNone[K, V](map: Map[K, V], values: Array[K]): Bool = {
   var contains = true;
   values.foreach() { (value) { l } =>
-    if (map.get(values).isDefined()) {
+    if (map.get(value).isDefined()) {
       contains = false;
       l.break();
     }
