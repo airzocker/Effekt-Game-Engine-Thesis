@@ -29,7 +29,7 @@ interface ECSException {
 }
 
 interface ComponentManager {
-  def registerComponentStore[T](componentStore: Ref[OptionArray[T]]): Int
+  def internalRegisterComponentStore[T](componentStore: Ref[OptionArray[T]]): Int
   def internalRemoveComponent(componentId: Int, componentIndex: Int): Unit
   def internalCopyComponent(componentId: Int, fromComponentIndex: Int, toComponentIndex: Int): Unit
 }
@@ -47,23 +47,23 @@ interface Resource[T] {
 }
 
 interface ArchManager {
-  def hasComponent(archId: Int, componentId: Int): Bool
-  def addEntity(entity: Entity): EntityData
-  def removeSwapEntity(entityData: EntityData): Option[Entity]
-  def getComponent[T](entityData: EntityData): Option[T] / Component[T]
-  def setComponent[T](entityData: EntityData, value: T): Option[(EntityData, Option[Entity])] / Component[T]
-  def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
-  def removeComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
-  def iterEntities(archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Entity] }: Unit / stop
-  def iterRO[T](archIds: ResizableArray[Int]) { prog: => Unit / read[T] }: Unit / { Component[T], stop }
-  def iterRW[T](archIds: ResizableArray[Int]) { prog: => Unit / { read[T], emit[T] } }: Unit / { Component[T], stop }
-  def iterOptRO[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Option[T]] }: Unit / { Component[T], stop }
-  def iterOptRW[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / { read[Option[T]], emit[Option[T]] } }: Unit / { Component[T], stop }
-  def getQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
+  def internalHasComponent(archId: Int, componentId: Int): Bool
+  def internalAddEntity(entity: Entity): EntityData
+  def internalRemoveSwapEntity(entityData: EntityData): Option[Entity]
+  def internalGetComponent[T](entityData: EntityData): Option[T] / Component[T]
+  def internalSetComponent[T](entityData: EntityData, value: T): Option[(EntityData, Option[Entity])] / Component[T]
+  def internalAddExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
+  def internalRemoveComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
+  def internalIterEntities(archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Entity] }: Unit / stop
+  def internalIterRO[T](archIds: ResizableArray[Int]) { prog: => Unit / read[T] }: Unit / { Component[T], stop }
+  def internalIterRW[T](archIds: ResizableArray[Int]) { prog: => Unit / { read[T], emit[T] } }: Unit / { Component[T], stop }
+  def internalIterOptRO[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Option[T]] }: Unit / { Component[T], stop }
+  def internalIterOptRW[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / { read[Option[T]], emit[Option[T]] } }: Unit / { Component[T], stop }
+  def internalGetQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
 }
 
 interface EntityIdManager {
-  def nextEntityId(): Int
+  def internalNextEntityId(): Int
   def invalidEntityId(): Int
 }
 
@@ -76,6 +76,7 @@ interface EntityManager {
   def removeComponent[T](entity: Entity): Unit / { Component[T], ECSException }
   def getComponent[T](entity: Entity): T / { Component[T], ECSException }
   def setComponent[T](entity: Entity, value: T): Unit / { Component[T], ECSException }
+  def internalGetEntityDatas(): OptionArray[(Entity, EntityData)]
 }
 
 interface Query[T, With, Without] {
@@ -83,7 +84,7 @@ interface Query[T, With, Without] {
   def foreachRW() { action: (Entity, T) => T }: Unit
   def iterRO() { prog: => Unit / read[T] }: Unit / stop
   def iterRW() { prog: => Unit / { read[T], emit[T] } }: Unit / stop
-  def getWithWithoutIds(): (Map[Int, Unit], Map[Int, Unit])
+  def internalGetWithWithoutIds(): (Map[Int, Unit], Map[Int, Unit])
 }
 
 interface QueryManager {
@@ -93,13 +94,12 @@ interface QueryManager {
 }
 
 interface System {
-  def step(): Unit / EntityManager
+  def internalStep(): Unit / EntityManager
 }
 
 interface World {
   def stepWorld(): Unit / System
   def runWorld(): Unit / System
-  def addSystem() { body: => Unit / EntityManager }: Unit
 }
 
 def componentManager() { prog: => Unit / ComponentManager }: Unit = {
@@ -108,7 +108,7 @@ def componentManager() { prog: => Unit / ComponentManager }: Unit = {
   try {
     prog();
   } with ComponentManager {
-    def registerComponentStore[T](componentStore) = {
+    def internalRegisterComponentStore[T](componentStore) = {
       removeOps.add(Remove(componentStore));
       copyOps.add(Copy(componentStore));
       resume(removeOps.size() - 1)
@@ -135,7 +135,7 @@ def componentManager() { prog: => Unit / ComponentManager }: Unit = {
 
 def component[T]() { prog: => Unit / Component[T] }: Unit / ComponentManager = {
   val componentStore = ref(optionArray(4));
-  val componentId = do registerComponentStore(componentStore);
+  val componentId = do internalRegisterComponentStore(componentStore);
   try {
     prog();
   } with Component[T] {
@@ -254,13 +254,13 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
   try {
     prog();
   } with ArchManager {
-    def hasComponent(archId, componentId) = {
+    def internalHasComponent(archId, componentId) = {
       resume(archs.unsafeGet(archId).componentIndices.get(componentId).isDefined())
     }
-    def addEntity(entity) = {
+    def internalAddEntity(entity) = {
       resume(EntityData(0, archs.unsafeGet(0).entities.add(entity)))
     }
-    def removeSwapEntity(entityData) = {
+    def internalRemoveSwapEntity(entityData) = {
       val arch = archs.unsafeGet(entityData.archId);
       arch.componentIndices.keys().foreach() { compId =>
         val compIndex = arch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex);
@@ -272,7 +272,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
       }
       resume(swapped)
     }
-    def getComponent[T](entityData) = {
+    def internalGetComponent[T](entityData) = {
       resume {
         val compId = do getComponentId[T]();
         archs.unsafeGet(entityData.archId).componentIndices.get(compId).map() { compIndices =>
@@ -281,7 +281,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def setComponent[T](entityData, value) = {
+    def internalSetComponent[T](entityData, value) = {
       resume {
         val compId = do getComponentId[T]();
         archs.unsafeGet(entityData.archId).componentIndices.get(compId) match {
@@ -294,10 +294,10 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def addExistingComponent(entityData, componentId, componentIndex) = {
+    def internalAddExistingComponent(entityData, componentId, componentIndex) = {
       resume(addExistingComponent(entityData, componentId, componentIndex))
     }
-    def removeComponent(entityData, componentId) = {
+    def internalRemoveComponent(entityData, componentId) = {
       val oldArch = archs.unsafeGet(entityData.archId);
       val newCompIndices = emptyMap();
       var sameArch = true;
@@ -335,7 +335,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         ))
       }
     }
-    def iterEntities(archIds, iterAll) = {
+    def internalIterEntities(archIds, iterAll) = {
       resume { { prog } =>
         if (archIds.size() == 0 && not(iterAll)) {
           try {
@@ -387,7 +387,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def iterRO[T](archIds) = {
+    def internalIterRO[T](archIds) = {
       resume { { prog } =>
         if (archIds.size() == 0) {
           try {
@@ -419,7 +419,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def iterRW[T](archIds) = {
+    def internalIterRW[T](archIds) = {
       resume { { prog } =>
         if (archIds.size() == 0) {
           try {
@@ -456,7 +456,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def iterOptRO[T](archIds, iterAll) = {
+    def internalIterOptRO[T](archIds, iterAll) = {
       resume { { prog } =>
         if (archIds.size() == 0 && not(iterAll)) {
           try {
@@ -535,7 +535,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def iterOptRW[T](archIds, iterAll) = {
+    def internalIterOptRW[T](archIds, iterAll) = {
       resume { { prog } =>
         if (archIds.size() == 0 && not(iterAll)) {
           try {
@@ -623,7 +623,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
 
       }      
     }
-    def getQueryArchIds(withIds, withoutIds, lastChangeVersion) = {
+    def internalGetQueryArchIds(withIds, withoutIds, lastChangeVersion) = {
       var result = None();
       if (lastChangeVersion < changeVersion) {
         val matching = resizableArray(4);
@@ -649,7 +649,7 @@ def entityIdManager() { prog: => Unit / EntityIdManager }: Unit = {
   try {
     prog();
   } with EntityIdManager {
-    def nextEntityId() = {
+    def internalNextEntityId() = {
       lastEntityId = lastEntityId + 1;
       resume(lastEntityId)
     }
@@ -659,7 +659,7 @@ def entityIdManager() { prog: => Unit / EntityIdManager }: Unit = {
   }
 }
 
-def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityManager }: Unit / { ArchManager, EntityIdManager } = {
+def entityManager() { prog: => Unit / EntityManager }: Unit / { ArchManager, EntityIdManager } = {
   var entityDatas: OptionArray[(Entity, EntityData)] = optionArray(4);
   def getEntityData(entity: Entity): EntityData / ECSException = {
     entityDatas.get(entity.index).map() { value =>
@@ -673,7 +673,7 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
     }
   }
   try {
-    prog(entityDatas);
+    prog();
   } with EntityManager {
     def hasEntity(entity) = {
       resume(entityDatas.get(entity.index).isDefined())
@@ -681,7 +681,7 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
     def hasComponent[T](entity) = {
       resume {
         val entityData = getEntityData(entity);
-        do hasComponent(entityData.archId, do getComponentId[T]())
+        do internalHasComponent(entityData.archId, do getComponentId[T]())
       }
     }
     def getEntityData(entity) = {
@@ -690,17 +690,17 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
       }
     }
     def createEntity() = {
-      val tempEntity = Entity(do nextEntityId(), 0);
+      val tempEntity = Entity(do internalNextEntityId(), 0);
       val index = entityDatas.add((tempEntity, EntityData(0, 0)));
       val entity = Entity(tempEntity.id, index);
-      val entityData = do addEntity(entity);
+      val entityData = do internalAddEntity(entity);
       entityDatas.unsafeSet(index, (entity, entityData));
       resume(entity)
     }
     def destroyEntity(entity) = {
       resume {
         val entityData = getEntityData(entity);
-        do removeSwapEntity(entityData).map() { swappedEntity =>
+        do internalRemoveSwapEntity(entityData).map() { swappedEntity =>
           entityDatas.unsafeSet(swappedEntity.index, (swappedEntity, entityData));
         };
         entityDatas.remove(entity.index);
@@ -710,7 +710,7 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
       resume {
         val compId = do getComponentId[T]();
         val entityData = getEntityData(entity);
-        val (newEntityData, swapped) = do removeComponent(entityData, compId);
+        val (newEntityData, swapped) = do internalRemoveComponent(entityData, compId);
         entityDatas.unsafeSet(entity.index, (entity, newEntityData));
         swapped.map() { swappedEntity =>
           entityDatas.unsafeSet(swappedEntity.index, (swappedEntity, entityData));
@@ -721,7 +721,7 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
     def getComponent[T](entity) = {
       resume {
         val entityData = getEntityData(entity);
-        (do getComponent(entityData)).getOrElse() {
+        (do internalGetComponent(entityData)).getOrElse() {
           do invalidComponent(entity, do getComponentId[T]());
         }
       }
@@ -729,7 +729,7 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
     def setComponent[T](entity, value) = {
       resume {
         val entityData = getEntityData(entity);
-        (do setComponent(entityData, value)).map() { result =>
+        (do internalSetComponent(entityData, value)).map() { result =>
           val (newEntityData, swapped) = result;
           entityDatas.unsafeSet(entity.index, (entity, newEntityData));
           swapped.map() { swappedEntity =>
@@ -738,6 +738,9 @@ def entityManager() { prog: OptionArray[(Entity, EntityData)] => Unit / EntityMa
         }
         ()
       }
+    }
+    def internalGetEntityDatas() = {
+      resume(entityDatas)
     }
   }
 }
@@ -760,11 +763,11 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
       }
     }
     def createEntity() = {
-      val tempEntity = Entity(do nextEntityId(), 0);
+      val tempEntity = Entity(do internalNextEntityId(), 0);
       val index = entityDatas.add((Entity(do invalidEntityId(), 0), EntityData(0, 0)));
       val entity = Entity(tempEntity.id, index);
       resume(entity)
-      val entityData = do addEntity(entity);
+      val entityData = do internalAddEntity(entity);
       entityDatas.unsafeSet(index, (entity, entityData));
     }
     def destroyEntity(entity) = {
@@ -788,7 +791,7 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
       try {
         resume {
           val entityData = do getEntityData(entity);
-          val (newEntityData, swapped) = do removeComponent(entityData, compId);
+          val (newEntityData, swapped) = do internalRemoveComponent(entityData, compId);
           entityDatas.unsafeSet(entity.index, (entity, newEntityData));
           swapped.map() { swappedEntity =>
             entityDatas.unsafeSet(swappedEntity.index, (swappedEntity, entityData));
@@ -832,6 +835,39 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
         }
       }
     }
+    def internalGetEntityDatas() = {
+      resume(do internalGetEntityDatas())
+    }
+  }
+}
+
+def system()
+{ prog: => Unit / System }
+{ body: => Unit / EntityManager }: Unit /
+{ System, ArchManager, EntityIdManager } = {
+  try {
+    prog();
+  } with System {
+    def internalStep() = {
+      resume {
+          do internalStep();
+          systemEntityManager(do internalGetEntityDatas()) {
+            body();
+          };
+      }
+    }
+  }
+}
+
+def defaultSystem() { prog: => Unit / System }: Unit = {
+  try {
+    prog();
+  } with System {
+    def internalStep() = {
+      resume {
+        ()
+      }
+    }
   }
 }
 
@@ -842,10 +878,10 @@ def addC[A, T, With, Without]()
   val compId = do getComponentId[A]();
   var matchingArchIds = resizableArray(0);
   var lastChangeVersion = 0;
-  val (withIds, withoutIds) = query.getWithWithoutIds();
+  val (withIds, withoutIds) = query.internalGetWithWithoutIds();
   withIds.update(compId, ());
   def updateQuery() = {
-    (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
+    (do internalGetQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
       matchingArchIds = result.first;
       lastChangeVersion = result.second;
     };
@@ -858,9 +894,9 @@ def addC[A, T, With, Without]()
       resume { { action } =>
         updateQuery();
         try {
-          with do iterEntities(matchingArchIds, false);
+          with do internalIterEntities(matchingArchIds, false);
           with query.iterRO();
-          with do iterRO[A](matchingArchIds);
+          with do internalIterRO[A](matchingArchIds);
           loop {
             action(do read(), (do read(), do read()));
           }
@@ -873,9 +909,9 @@ def addC[A, T, With, Without]()
       resume { { action } =>
         updateQuery();
         try {
-          with do iterEntities(matchingArchIds, false);
+          with do internalIterEntities(matchingArchIds, false);
           with query.iterRW();
-          with do iterRW[A](matchingArchIds);
+          with do internalIterRW[A](matchingArchIds);
           loop {
             val value = action(do read(), (do read(), do read()));
             do emit(value.first);
@@ -889,7 +925,7 @@ def addC[A, T, With, Without]()
     def iterRO() = {
       resume { { prog } =>
         with query.iterRO();
-        with do iterRO[A](matchingArchIds);
+        with do internalIterRO[A](matchingArchIds);
         try {
           prog();
         } with read[(T, A)] {
@@ -902,7 +938,7 @@ def addC[A, T, With, Without]()
     def iterRW() = {
       resume { { prog } =>
         with query.iterRW();
-        with do iterRW[A](matchingArchIds);
+        with do internalIterRW[A](matchingArchIds);
         try {
           prog();
         } with read[(T, A)] {
@@ -916,7 +952,7 @@ def addC[A, T, With, Without]()
         }
       }
     }
-    def getWithWithoutIds() = {
+    def internalGetWithWithoutIds() = {
       resume((withIds, withoutIds))
     }
   }
@@ -928,9 +964,9 @@ def addOptC[A, T, With, Without]()
   { ArchManager, QueryManager, Component[A] } = {
   var matchingArchIds = resizableArray(0);
   var lastChangeVersion = 0;
-  val (withIds, withoutIds) = query.getWithWithoutIds();
+  val (withIds, withoutIds) = query.internalGetWithWithoutIds();
   def updateQuery() = {
-    (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
+    (do internalGetQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
       matchingArchIds = result.first;
       lastChangeVersion = result.second;
     };
@@ -945,9 +981,9 @@ def addOptC[A, T, With, Without]()
           updateQuery();
         }
         try {
-          with do iterEntities(matchingArchIds, withIds.size() == 0);
+          with do internalIterEntities(matchingArchIds, withIds.size() == 0);
           with query.iterRO();
-          with do iterOptRO[A](matchingArchIds, withIds.size() == 0);
+          with do internalIterOptRO[A](matchingArchIds, withIds.size() == 0);
           loop {
             action(do read(), (do read(), do read()));
           }
@@ -962,9 +998,9 @@ def addOptC[A, T, With, Without]()
           updateQuery();
         }
         try {
-          with do iterEntities(matchingArchIds, withIds.size() == 0);
+          with do internalIterEntities(matchingArchIds, withIds.size() == 0);
           with query.iterRW();
-          with do iterOptRW[A](matchingArchIds, withIds.size() == 0);
+          with do internalIterOptRW[A](matchingArchIds, withIds.size() == 0);
           loop {
             val value = action(do read(), (do read(), do read()));
             do emit(value.first);
@@ -978,7 +1014,7 @@ def addOptC[A, T, With, Without]()
     def iterRO() = {
       resume { { prog } =>
         with query.iterRO();
-        with do iterOptRO[A](matchingArchIds, withIds.size() == 0);
+        with do internalIterOptRO[A](matchingArchIds, withIds.size() == 0);
         try {
           prog();
         } with read[(T, Option[A])] {
@@ -991,7 +1027,7 @@ def addOptC[A, T, With, Without]()
     def iterRW() = {
       resume { { prog } =>
         with query.iterRW();
-        with do iterOptRW[A](matchingArchIds, withIds.size() == 0);
+        with do internalIterOptRW[A](matchingArchIds, withIds.size() == 0);
         try {
           prog();
         } with read[(T, Option[A])] {
@@ -1005,7 +1041,7 @@ def addOptC[A, T, With, Without]()
         }
       }
     }
-    def getWithWithoutIds() = {
+    def internalGetWithWithoutIds() = {
       resume((withIds, withoutIds))
     }
   }
@@ -1017,7 +1053,7 @@ def withC[A, T, With, Without]()
   val compId = do getComponentId[A]();
   var matchingArchIds: ResizableArray[Int] = resizableArray(0);
   var lastChangeVersion = 0;
-  val (withIds, withoutIds) = query.getWithWithoutIds();
+  val (withIds, withoutIds) = query.internalGetWithWithoutIds();
   withIds.update(compId, ());
   try {
     prog();
@@ -1042,7 +1078,7 @@ def withC[A, T, With, Without]()
         query.iterRW() { prog };
       }
     }
-    def getWithWithoutIds() = {
+    def internalGetWithWithoutIds() = {
       resume((withIds, withoutIds))
     }
   }
@@ -1054,7 +1090,7 @@ def withoutC[A, T, With, Without]()
   val compId = do getComponentId[A]();
   var matchingArchIds: ResizableArray[Int] = resizableArray(0);
   var lastChangeVersion = 0;
-  val (withIds, withoutIds) = query.getWithWithoutIds();
+  val (withIds, withoutIds) = query.internalGetWithWithoutIds();
   withoutIds.update(compId, ());
   try {
     prog();
@@ -1079,7 +1115,7 @@ def withoutC[A, T, With, Without]()
         query.iterRW() { prog };
       }
     }
-    def getWithWithoutIds() = {
+    def internalGetWithWithoutIds() = {
       resume((withIds, withoutIds))
     }
   }
@@ -1098,7 +1134,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
         val withoutIds = emptyMap();
         withIds.update(compId, ());
         def updateQuery() = {
-          (do getQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
+          (do internalGetQueryArchIds(withIds, withIds, lastChangeVersion)).map() { result =>
             matchingArchIds = result.first;
             lastChangeVersion = result.second;
           };
@@ -1111,8 +1147,8 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
             resume { { action } =>
               updateQuery();
               try {
-                with do iterEntities(matchingArchIds, false);
-                with do iterRO[T](matchingArchIds);
+                with do internalIterEntities(matchingArchIds, false);
+                with do internalIterRO[T](matchingArchIds);
                 loop {
                   action(do read(), do read());
                 }
@@ -1125,8 +1161,8 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
             resume { { action } =>
               updateQuery();
               try {
-                with do iterEntities(matchingArchIds, false);
-                with do iterRW[T](matchingArchIds);
+                with do internalIterEntities(matchingArchIds, false);
+                with do internalIterRW[T](matchingArchIds);
                 loop {
                   do emit(action(do read(), do read()));
                 }
@@ -1137,17 +1173,17 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           }
           def iterRO() = {
             resume { { prog } =>
-              with do iterRO[T](matchingArchIds);
+              with do internalIterRO[T](matchingArchIds);
               prog();
             }
           }
           def iterRW() = {
             resume { { prog } =>
-              with do iterRW[T](matchingArchIds);
+              with do internalIterRW[T](matchingArchIds);
               prog();
             }
           }
-          def getWithWithoutIds() = {
+          def internalGetWithWithoutIds() = {
             resume((withIds, withoutIds))
           }
         }
@@ -1165,8 +1201,8 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRO() = {
             resume { { action } =>
               try {
-                with do iterEntities(matchingArchIds, true);
-                with do iterOptRO[T](matchingArchIds, true);
+                with do internalIterEntities(matchingArchIds, true);
+                with do internalIterOptRO[T](matchingArchIds, true);
                 loop {
                   action(do read(), do read());
                 }
@@ -1178,8 +1214,8 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRW() = {
             resume { { action } =>
               try {
-                with do iterEntities(matchingArchIds, true);
-                with do iterOptRW[T](matchingArchIds, true);
+                with do internalIterEntities(matchingArchIds, true);
+                with do internalIterOptRW[T](matchingArchIds, true);
                 loop {
                   do emit(action(do read(), do read()));
                 }
@@ -1190,17 +1226,17 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           }
           def iterRO() = {
             resume { { prog } =>
-              with do iterOptRO[T](matchingArchIds, true);
+              with do internalIterOptRO[T](matchingArchIds, true);
               prog();
             }
           }
           def iterRW() = {
             resume { { prog } =>
-              with do iterOptRW[T](matchingArchIds, true);
+              with do internalIterOptRW[T](matchingArchIds, true);
               prog();
             }
           }
-          def getWithWithoutIds() = {
+          def internalGetWithWithoutIds() = {
             resume((withIds, withoutIds))
           }
         }
@@ -1218,7 +1254,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRO() = {
             resume { { action } =>
               try {
-                with do iterEntities(matchingArchIds, true);
+                with do internalIterEntities(matchingArchIds, true);
                 loop {
                   action(do read(), ());
                 }
@@ -1230,7 +1266,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
           def foreachRW() = {
             resume { { action } =>
               try {
-                with do iterEntities(matchingArchIds, true);
+                with do internalIterEntities(matchingArchIds, true);
                 loop {
                   action(do read(), ());
                 }
@@ -1259,7 +1295,7 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
               }
             }
           }
-          def getWithWithoutIds() = {
+          def internalGetWithWithoutIds() = {
             resume((withIds, withoutIds))
           }
         }
@@ -1268,20 +1304,19 @@ def queryManager() { prog: => Unit / QueryManager }: Unit / ArchManager = {
   }
 }
 
-def world() { prog: => Unit / { Resource[RunWorld], ComponentManager, ArchManager, EntityManager, QueryManager, World } }: Unit = {
+def world()
+{ prog: => Unit /
+  { Resource[RunWorld], ComponentManager, ArchManager, EntityManager, System, QueryManager, World }
+}: Unit = {
   with createResource[RunWorld](RunWorld(true));
   with componentManager();
   with archManager();
   with entityIdManager();
-  with val entityDatas = entityManager();
+  with entityManager();
+  with defaultSystem();
   with queryManager();
-  var system = new System {
-    def step() = {
-      ()
-    }
-  };
   def stepWorld() = {
-    system.step();
+    do internalStep();
   }
   try {
     prog();
@@ -1301,18 +1336,6 @@ def world() { prog: => Unit / { Resource[RunWorld], ComponentManager, ArchManage
           wait(10);
           //wait(0);
           stepWorld();
-        }
-      }
-    }
-    def addSystem() = {
-      resume { { body } =>
-        system = new System {
-          def step() = {
-            system.step();
-            systemEntityManager(entityDatas) {
-              body();
-            };
-          }
         }
       }
     }
