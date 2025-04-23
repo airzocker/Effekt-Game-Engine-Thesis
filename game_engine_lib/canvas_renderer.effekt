@@ -18,17 +18,11 @@ record WindowProperties(size: Vector2Int)
 def canvasRenderer() { prog: => Unit / {
   Resource[Camera], Resource[WindowProperties],
   Component[Shape],
-  Component[Option[Shape]],
-  Components[Shape],
-  Components[Option[Shape]],
-  Components[(Position, Option[Rotation], Option[Scale], Shape)],
   System
 } }: Unit / {
-  Component[Position],
-  Component[Option[Rotation]],
-  Component[Option[Scale]],
-  Components[Unit],
-  ComponentManager, System, ArchManager, EntityManager
+  Component[Position], Component[Rotation], Component[Scale],
+  System, EntityIdManager,
+  ComponentManager, ArchManager, EntityManager, World
 } = {
   val context = jsGetContext();
   jsInitCanvas();
@@ -40,8 +34,12 @@ def canvasRenderer() { prog: => Unit / {
     0.0,
     10.0
   ));
-  with zipComponents4[Position, Option[Rotation], Option[Scale], Shape]();
-  with addSystem[(Position, Option[Rotation], Option[Scale], Shape), Unit, Unit]() { { query } =>
+  with def q = query[Position]();
+  with def q = q.addOptC[Position, Unit, Unit, Rotation]() { q };
+  with def q = q.addOptC[(Position, Option[Rotation]), Unit, Unit, Scale]() { q };
+  with def q = q.addC[((Position, Option[Rotation]), Option[Scale]), Unit, Unit, Shape]() { q };
+  with def query = q.buildQuery() { q };
+  with system() {
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
@@ -49,7 +47,7 @@ def canvasRenderer() { prog: => Unit / {
     setCameraTransform(context, do getResource[Camera]());
     query.foreachRO() { (_, values) =>
       values match {
-        case (position, optRotation, optScale, shape) => {
+        case (((position, optRotation), optScale), shape) => {
           val rotation = optRotation.getOrElse() { default() };
           val scale = optScale.getOrElse() { default() };
           jsSave(context);

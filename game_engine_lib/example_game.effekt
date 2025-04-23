@@ -16,84 +16,84 @@ def exampleGame() = {
 
   with canvasRenderer();
 
-  with addSystem[Rotation, Shape, Player]() { { query } =>
-    val deltaTime = (do getResource[Time]()).deltaTime;
-    val movement = deltaTime * PI * 2.0 * 0.2;
-    val rot = if (jsGetKey("ArrowRight")) {
-      movement
-    } else if (jsGetKey("ArrowLeft")) {
-      0.0 - movement
-    } else {
-      0.0
-    };
-    query.foreachRW() { (entity, rotation) =>
-      Rotation(limitRotation(rotation.value + rot))
-    }
-  };
+  // with addSystem[Rotation, Shape, Player]() { { query } =>
+  //   val deltaTime = (do getResource[Time]()).deltaTime;
+  //   val movement = deltaTime * PI * 2.0 * 0.2;
+  //   val rot = if (jsGetKey("ArrowRight")) {
+  //     movement
+  //   } else if (jsGetKey("ArrowLeft")) {
+  //     0.0 - movement
+  //   } else {
+  //     0.0
+  //   };
+  //   query.foreachRW() { (entity, rotation) =>
+  //     Rotation(limitRotation(rotation.value + rot))
+  //   }
+  // };
 
-  with addSystem[Position, Player, Unit]() { { query } =>
-    val deltaTime = (do getResource[Time]()).deltaTime;
-    val movement = deltaTime * 4.0;
-    val x = if (jsGetKey("ArrowRight")) {
-      movement
-    } else if (jsGetKey("ArrowLeft")) {
-      0.0 - movement
-    } else {
-      0.0
-    };
-    val y = if (jsGetKey("ArrowUp")) {
-      movement
-    } else if (jsGetKey("ArrowDown")) {
-      0.0 - movement
-    } else {
-      0.0
-    };
-    val change = Vector2(x, y);
-    query.foreachRW() { (entity, position) =>
-      Position(position.value + change)
-    }
-  };
+  // with addSystem[Position, Player, Unit]() { { query } =>
+  //   val deltaTime = (do getResource[Time]()).deltaTime;
+  //   val movement = deltaTime * 4.0;
+  //   val x = if (jsGetKey("ArrowRight")) {
+  //     movement
+  //   } else if (jsGetKey("ArrowLeft")) {
+  //     0.0 - movement
+  //   } else {
+  //     0.0
+  //   };
+  //   val y = if (jsGetKey("ArrowUp")) {
+  //     movement
+  //   } else if (jsGetKey("ArrowDown")) {
+  //     0.0 - movement
+  //   } else {
+  //     0.0
+  //   };
+  //   val change = Vector2(x, y);
+  //   query.foreachRW() { (entity, position) =>
+  //     Position(position.value + change)
+  //   }
+  // };
 
-  with zipComponents4[Position, Rotation, Scale, Shape]();
-  do createEntity[(Position, Rotation, Scale, Shape)]((
-    default(),
-    default(),
-    Scale(Vector2(3.0, 1.5)),
-    Rect(Color(255, 0, 255))
-  ));
-  do createEntity[(Position, Rotation, Scale, Shape)]((
-    Position(Vector2(4.0, 2.0)),
-    default(),
-    Scale(Vector2(3.0, 1.5)),
-    Circle(Color(255, 0, 255))
-  ));
-  do createEntity[(Position, Rotation, Scale, Shape)]((
-    Position(Vector2(-4.0, 2.0)),
-    default(),
-    default(),
-    Text(Color(255, 0, 255), "Test-text")
-  ));
-  do createEntity[(Position, Rotation, Scale, Shape)]((
-    Position(Vector2(-4.0, -2.0)),
-    default(),
-    Scale(Vector2(1.333, 0.75)),
-    Text(Color(255, 0, 255), "stretched")
-  ));
-  do createEntity[(Position, Rotation, Scale, Shape)]((
-    Position(Vector2(4.0, -2.0)),
-    default(),
-    Scale(Vector2(0.75, 1.333)),
-    Text(Color(255, 0, 255), "squished")
-  ));
+  // with zipComponents4[Position, Rotation, Scale, Shape]();
+  // do createEntity[(Position, Rotation, Scale, Shape)]((
+  //   default(),
+  //   default(),
+  //   Scale(Vector2(3.0, 1.5)),
+  //   Rect(Color(255, 0, 255))
+  // ));
+  // do createEntity[(Position, Rotation, Scale, Shape)]((
+  //   Position(Vector2(4.0, 2.0)),
+  //   default(),
+  //   Scale(Vector2(3.0, 1.5)),
+  //   Circle(Color(255, 0, 255))
+  // ));
+  // do createEntity[(Position, Rotation, Scale, Shape)]((
+  //   Position(Vector2(-4.0, 2.0)),
+  //   default(),
+  //   default(),
+  //   Text(Color(255, 0, 255), "Test-text")
+  // ));
+  // do createEntity[(Position, Rotation, Scale, Shape)]((
+  //   Position(Vector2(-4.0, -2.0)),
+  //   default(),
+  //   Scale(Vector2(1.333, 0.75)),
+  //   Text(Color(255, 0, 255), "stretched")
+  // ));
+  // do createEntity[(Position, Rotation, Scale, Shape)]((
+  //   Position(Vector2(4.0, -2.0)),
+  //   default(),
+  //   Scale(Vector2(0.75, 1.333)),
+  //   Text(Color(255, 0, 255), "squished")
+  // ));
 
-  with zipComponents5[Position, Rotation, Scale, Shape, Player]();
-  do createEntity[(Position, Rotation, Scale, Shape, Player)]((
-    Position(Vector2(0.0, -2.0)),
-    default(),
-    Scale(Vector2(0.4, 0.6)),
-    Text(Color(20, 200, 150), "Player"),
-    Player()
-  ));
+  // with zipComponents5[Position, Rotation, Scale, Shape, Player]();
+  // do createEntity[(Position, Rotation, Scale, Shape, Player)]((
+  //   Position(Vector2(0.0, -2.0)),
+  //   default(),
+  //   Scale(Vector2(0.4, 0.6)),
+  //   Text(Color(20, 200, 150), "Player"),
+  //   Player()
+  // ));
 
   do setResource[Camera](Camera(
     zero(),

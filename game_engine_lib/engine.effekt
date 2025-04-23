@@ -35,13 +35,9 @@ def limitRotation(rotation: Double): Double = {
 }
 
 def engineWorld() { prog: => Unit / {
-  Resource[Time], Resource[TimeScale],
+  Resource[RunWorld], Resource[Time], Resource[TimeScale],
   Component[Position], Component[Rotation], Component[Scale],
-  Component[Option[Position]], Component[Option[Rotation]], Component[Option[Scale]],
-  Components[Position], Components[Rotation], Components[Scale],
-  Components[Option[Position]], Components[Option[Rotation]], Components[Option[Scale]],
-  Components[Unit], 
-  ComponentManager, ArchManager, EntityManager, System, World
+  ComponentManager, ArchManager, EntityIdManager, EntityManager, System, World
 } }: Unit = {
   jsInitInput();
   with world();
@@ -57,14 +53,14 @@ def defaultEngineSystem() { prog: => Unit / {
   System
 } }: Unit / {
   Resource[RunWorld],
-  Components[Unit],
-  System, ArchManager, EntityManager, World
+  System, EntityIdManager,
+  ArchManager, EntityManager, World
 } = {
   val timeScale = TimeScale(1.0);
   val time = updateTime(Time(0.0, 0.0, 0.0, 0.0, -1), timeScale);
   with createResource[TimeScale](timeScale);
   with createResource[Time](time);
-  with addSystem[Unit, Unit, Unit]() { { _ } =>
+  with system() {
     do setResource[Time](updateTime(do getResource[Time](), do getResource[TimeScale]()));
     jsClearFrameInput();
     if (jsGetKey("Escape")) {
