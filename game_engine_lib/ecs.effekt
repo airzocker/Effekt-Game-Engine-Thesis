@@ -84,30 +84,9 @@ interface QueryIter[T] {
   def set(value: T): Unit
 }
 
-interface QueryFilter[T, With, Without] {
-  def addC[A]()
-  { query: QueryFilter[T, With, Without] }
-  { prog: { query: QueryFilter[(T, A), With, Without] } => Unit }: Unit / Component[A]
-  def addOptC[A]()
-  { query: QueryFilter[T, With, Without] }
-  { prog: { query: QueryFilter[(T, Option[A]), With, Without] } => Unit }: Unit / Component[A]
-  def withC[A]()
-  { query: QueryFilter[T, With, Without] }
-  { prog: { query: QueryFilter[T, (With, A), Without] } => Unit }: Unit / Component[A]
-  def withoutC[A]()
-  { query: QueryFilter[T, With, Without] }
-  { prog: { query: QueryFilter[T, With, (Without, A)] } => Unit }: Unit / Component[A]
-  def buildQuery()
-  { query: QueryFilter[T, With, Without] }
-  { prog: { query: Query[T, With, Without] } => Unit }: Unit
-  def internalForeachRO(matchingArchIds: Ref[ResizableArray[Int]]) { action: (Entity, T) => Unit }: Unit
-  def internalForeachRW(matchingArchIds: Ref[ResizableArray[Int]]) { action: (Entity, T) => T }: Unit
+interface Query {
+  def foreach() { action: Entity => Unit }: Unit
   def internalGetWithWithoutIds(): (Map[Int, Unit], Map[Int, Unit])
-}
-
-interface Query[T, With, Without] {
-  def foreachRO() { action: (Entity, T) => Unit }: Unit
-  def foreachRW() { action: (Entity, T) => T }: Unit
 }
 
 interface System {
@@ -888,69 +867,16 @@ def defaultSystem() { prog: => Unit / System }: Unit = {
   }
 }
 
-def query[A]() { prog: { query: QueryFilter[A, Unit, Unit] } => Unit }: Unit /
-{ ArchManager, Component[A] } = {
-  val compId = do getComponentId[A]();
+def query[T]() { prog: => Unit / Query }: Unit / { ArchManager, Component[T] } = {
+  val compId = do getComponentId[T]();
   val withIds = emptyMap();
   val withoutIds = emptyMap();
   withIds.update(compId, ());
   try {
-    prog() { q };
-  } with q: QueryFilter[A, Unit, Unit] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, A, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, A, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, A, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, A, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
+    prog();
+  } with Query {
+    def foreach() = {
       resume { { action } =>
-        try {
-          with do internalIterEntities(matchingArchIds.get(), false);
-          with do internalIterRO[A](matchingArchIds.get());
-          loop {
-            action(do read(), do read());
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterEntities(matchingArchIds.get(), false);
-          with do internalIterRW[A](matchingArchIds.get());
-          loop {
-            do emit(action(do read(), do read()));
-          };
-        } with stop {
-          ()
-        }
       }
     }
     def internalGetWithWithoutIds() = {
@@ -959,64 +885,14 @@ def query[A]() { prog: { query: QueryFilter[A, Unit, Unit] } => Unit }: Unit /
   }
 }
 
-def queryAll() { prog: => Unit / QueryFilter[Unit, Unit, Unit] }: Unit / ArchManager = {
+def queryAll() { prog: => Unit / Query }: Unit / ArchManager = {
   val withIds = emptyMap();
   val withoutIds = emptyMap();
   try {
     prog();
-  } with QueryFilter[Unit, Unit, Unit] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, Unit, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, Unit, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, Unit, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, Unit, Unit, Unit]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
+  } with Query {
+    def foreach() = {
       resume { { action } =>
-        try {
-          with do internalIterEntities(matchingArchIds.get(), true);
-          loop {
-            action(do read(), ());
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterEntities(matchingArchIds.get(), true);
-          loop {
-            action(do read(), ());
-          };
-        } with stop {
-          ()
-        }
       }
     }
     def internalGetWithWithoutIds() = {
@@ -1025,290 +901,17 @@ def queryAll() { prog: => Unit / QueryFilter[Unit, Unit, Unit] }: Unit / ArchMan
   }
 }
 
-def internalAddC[A, T, With, Without]()
-{ query: QueryFilter[T, With, Without] }
-{ prog: { query: QueryFilter[(T, A), With, Without] } => Unit }: Unit /
-{ ArchManager, Component[A] } = {
-  val compId = do getComponentId[A]();
-  val (withIds, withoutIds) = query.internalGetWithWithoutIds[T, With, Without]();
-  withIds.update(compId, ());
+def addC[T]() { prog: { iter: QueryIter[T] } => Unit }: Unit / { Query, Component[T] } = {
+  val compId = do getComponentId();
+  (do internalGetWithWithoutIds()).first.update(compId, ());
   try {
-    prog() { q };
-  } with q: QueryFilter[(T, A), With, Without] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, (T, A), With, Without]() { query };
-        prog() { query };
-      }
+    prog() { i };
+  } with i: QueryIter[T] {
+    def get() = {
+      resume()
     }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, (T, A), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, (T, A), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, (T, A), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterRO[A](matchingArchIds.get());
-          query.internalForeachRO[T, With, Without](matchingArchIds) { (entity, values) =>
-            action(entity, (values, do read()));
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterRW[A](matchingArchIds.get());
-          query.internalForeachRW[T, With, Without](matchingArchIds) { (entity, values) =>
-            val value = action(entity, (values, do read()));
-            do emit(value.second);
-            value.first
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
-    }
-  }
-}
-
-def internalAddOptC[A, T, With, Without]()
-{ query: QueryFilter[T, With, Without] }
-{ prog: { query: QueryFilter[(T, Option[A]), With, Without] } => Unit }: Unit /
-{ ArchManager, Component[A] } = {
-  val compId = do getComponentId[A]();
-  val (withIds, withoutIds) = query.internalGetWithWithoutIds[T, With, Without]();
-  withIds.update(compId, ());
-  try {
-    prog() { q };
-  } with q: QueryFilter[(T, Option[A]), With, Without] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, (T, Option[A]), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, (T, Option[A]), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, (T, Option[A]), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, (T, Option[A]), With, Without]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterOptRO[A](matchingArchIds.get(), withIds.size() == 0);
-          query.internalForeachRO[T, With, Without](matchingArchIds) { (entity, values) =>
-            action(entity, (values, do read()));
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        try {
-          with do internalIterOptRW[A](matchingArchIds.get(), withIds.size() == 0);
-          query.internalForeachRW[T, With, Without](matchingArchIds) { (entity, values) =>
-            val value = action(entity, (values, do read()));
-            do emit(value.second);
-            value.first
-          };
-        } with stop {
-          ()
-        }
-      }
-    }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
-    }
-  }
-}
-
-def internalWithC[A, T, With, Without]()
-{ query: QueryFilter[T, With, Without] }
-{ prog: { query: QueryFilter[T, (With, A), Without] } => Unit }: Unit /
-{ ArchManager, Component[A] } = {
-  val compId = do getComponentId[A]();
-  val (withIds, withoutIds) = query.internalGetWithWithoutIds[T, With, Without]();
-  withIds.update(compId, ());
-  try {
-    prog() { q };
-  } with q: QueryFilter[T, (With, A), Without] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, T, (With, A), Without]() { query };
-        prog() { query };
-      }
-    }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, T, (With, A), Without]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, T, (With, A), Without]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, T, (With, A), Without]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
-      resume { { action } =>
-        query.internalForeachRO[T, With, Without](matchingArchIds) { action };
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        query.internalForeachRW[T, With, Without](matchingArchIds) { action };
-      }
-    }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
-    }
-  }
-}
-
-def internalWithoutC[A, T, With, Without]()
-{ query: QueryFilter[T, With, Without] }
-{ prog: { query: QueryFilter[T, With, (Without, A)] } => Unit }: Unit /
-{ ArchManager, Component[A] } = {
-  val compId = do getComponentId[A]();
-  val (withIds, withoutIds) = query.internalGetWithWithoutIds[T, With, Without]();
-  withoutIds.update(compId, ());
-  try {
-    prog() { q };
-  } with q: QueryFilter[T, With, (Without, A)] {
-    def addC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddC[B, T, With, (Without, A)]() { query };
-        prog() { query };
-      }
-    }
-    def addOptC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalAddOptC[B, T, With, (Without, A)]() { query };
-        prog() { query };
-      }
-    }
-    def withC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithC[B, T, With, (Without, A)]() { query };
-        prog() { query };
-      }
-    }
-    def withoutC[B]() = {
-      resume { { query } { prog } =>
-        with def query = internalWithoutC[B, T, With, (Without, A)]() { query };
-        prog() { query };
-      }
-    }
-    def buildQuery() = {
-      resume { { query } { prog } =>
-        with def query = internalBuildQuery() { query };
-        prog() { query };
-      }
-    }
-    def internalForeachRO(matchingArchIds) = {
-      resume { { action } =>
-        query.internalForeachRO[T, With, Without](matchingArchIds) { action };
-      }
-    }
-    def internalForeachRW(matchingArchIds) = {
-      resume { { action } =>
-        query.internalForeachRW[T, With, Without](matchingArchIds) { action };
-      }
-    }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
-    }
-  }
-}
-
-def internalBuildQuery[T, With, Without]()
-{ query: QueryFilter[T, With, Without] }
-{ prog: { query: Query[T, With, Without] } => Unit }: Unit /
-{ ArchManager } = {
-  var lastChangeVersion = 0;
-  val (withIds, withoutIds) = query.internalGetWithWithoutIds[T, With, Without]();
-  val matchingArchIds = ref(resizableArray(0));
-  def updateQuery() = {
-    (do internalGetQueryArchIds(withIds, withoutIds, lastChangeVersion)).map() { result =>
-      matchingArchIds.set(result.first);
-      lastChangeVersion = result.second;
-    };
-    ()
-  }
-  try {
-    prog() { q };
-  } with q: Query[T, With, Without] {
-    def foreachRO() = {
-      resume { { action } =>
-        updateQuery();
-        query.internalForeachRO[T, With, Without](matchingArchIds) { action };
-      }
-    }
-    def foreachRW() = {
-      resume { { action } =>
-        updateQuery();
-        query.internalForeachRW[T, With, Without](matchingArchIds) { action };
-      }
+    def set(value) = {
+      resume()
     }
   }
 }
