@@ -52,13 +52,9 @@ interface ArchManager {
   def internalRemoveSwapEntity(entityData: EntityData): Option[Entity]
   def internalGetComponent[T](entityData: EntityData): Option[T] / Component[T]
   def internalSetComponent[T](entityData: EntityData, value: T): Option[(EntityData, Option[Entity])] / Component[T]
-  def internalAddExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity])
   def internalRemoveComponent(entityData: EntityData, componentId: Int): (EntityData, Option[Entity])
-  def internalIterEntities(archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Entity] }: Unit / stop
-  def internalIterRO[T](archIds: ResizableArray[Int]) { prog: => Unit / read[T] }: Unit / { Component[T], stop }
-  def internalIterRW[T](archIds: ResizableArray[Int]) { prog: => Unit / { read[T], emit[T] } }: Unit / { Component[T], stop }
-  def internalIterOptRO[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[Option[T]] }: Unit / { Component[T], stop }
-  def internalIterOptRW[T](archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / { read[Option[T]], emit[Option[T]] } }: Unit / { Component[T], stop }
+  def internalIterEntitiesArchIdsEntityIndices(archIds: ResizableArray[Int], iterAll: Bool) { prog: => Unit / read[(Entity, Int, Int)] }: Unit / stop
+  def internalGetComponentIndices(archId: Int, componentId: Int): Option[ResizableArray[Int]]
   def internalGetQueryArchIds(withIds: Map[Int, Unit], withoutIds: Map[Int, Unit], lastChangeVersion: Int): Option[(ResizableArray[Int], Int)]
 }
 
@@ -79,14 +75,21 @@ interface EntityManager {
   def internalGetEntityDatas(): OptionArray[(Entity, EntityData)]
 }
 
-interface QueryIter[T] {
-  def get(): T
-  def set(value: T): Unit
+interface QueryBuilder {
+  def addC[T]() { prog: { iter: CompIter[T] } => Unit }: Unit / Component[T]
+  def addOptC[T]() { prog: { iter: CompIter[Option[T]] } => Unit }: Unit / Component[T]
+  def withC[T](): Unit / Component[T]
+  def withoutC[T](): Unit / Component[T]
+  def buildQuery() { prog: { query: Query } => Unit }: Unit
 }
 
 interface Query {
   def foreach() { action: Entity => Unit }: Unit
-  def internalGetWithWithoutIds(): (Map[Int, Unit], Map[Int, Unit])
+}
+
+interface CompIter[T] {
+  def get(): T
+  def set(value: T): Unit
 }
 
 interface System {
@@ -96,6 +99,24 @@ interface System {
 interface World {
   def stepWorld(): Unit / System
   def runWorld(): Unit / System
+}
+
+def panicOnECSException() { prog: => Unit / ECSException }: Unit = {
+  try {
+    prog();
+  } with ECSException{
+    def invalidEntity(entity) = {
+      println("Invalid Entity:");
+      inspect(entity);
+      panic("");
+    }
+    def invalidComponent(entity, componentId) = {
+      println("Invalid ComponentId: " ++ componentId.show());
+      println("On Entity:");
+      inspect(entity);
+      panic("");
+    }
+  }
 }
 
 def componentManager() { prog: => Unit / ComponentManager }: Unit = {
@@ -168,7 +189,7 @@ def createResource[T](value: T) { prog: => Unit / Resource[T] }: Unit = {
 }
 
 def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
-  val archs = optionArray(4);
+  var archs = optionArray(4);
   archs.add(Arch(emptyMap(), resizableArray(4)));
   var changeVersion = 1;
   def addArch(arch: Arch): Int = {
@@ -179,14 +200,11 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
     changeVersion = changeVersion + 1;
     archs.remove(archId);
   }
-  def getComponentIndices(archId: Int, componentId: Int): Option[ResizableArray[Int]] = {
-    archs.unsafeGet(archId).componentIndices.get(componentId)
-  }
   def getMatchingArchId(componentIds: Array[Int]): Option[Int] = {
     var matching = None();
     archs.arr.foreachIndex() { (i, archOpt) { l } =>
       archOpt.map() { arch =>
-        if (arch.componentIndices.containsOnlyAll(componentIds)) {
+        if (arch.componentIndices.containsOnlyAllKeys(componentIds)) {
           matching = Some(i);
           l.break();
         }
@@ -208,44 +226,29 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
   }
   def addExistingComponent(entityData: EntityData, componentId: Int, componentIndex: Int): (EntityData, Option[Entity]) = {
     val oldArch = archs.unsafeGet(entityData.archId);
-    val newCompIndices = emptyMap();
-    var sameArch = false;
+    var newCompIndices = emptyMap();
     oldArch.componentIndices.keys().foreach() { (compId) { l } =>
-      if (compId == componentId) {
-        sameArch = true;
-        l.break();
-      }
       newCompIndices.update(compId, resizableArray(0));
     };
     newCompIndices.update(componentId, resizableArray(0));
-    if (sameArch) {
-      val oldComponentIndex = oldArch.componentIndices.unsafeGet(componentId).unsafeGet(entityData.entityIndex);
-      do internalCopyComponent(componentId, componentIndex, oldComponentIndex);
-      do internalRemoveComponent(componentId, componentIndex);
-      (
-        entityData,
-        None()
-      )
-    } else {
-      val newArchId = getMatchingArchId(newCompIndices.keys()).getOrElse() {
-        addArch(Arch(newCompIndices, resizableArray(4)))
-      };
-      val newArch = archs.unsafeGet(newArchId);
-      val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityData.entityIndex));
-      oldArch.componentIndices.keys().foreach() { compId =>
-        newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex));
-        ()
-      };
-      newArch.componentIndices.unsafeGet(componentId).add(componentIndex);
-      val swapped = oldArch.removeSwapEntityIndices(entityData.entityIndex);
-      if (entityData.archId > 0 && oldArch.entities.size() == 0) {
-        removeArch(entityData.archId);
-      }
-      (
-        EntityData(newArchId, newEntityIndex),
-        swapped
-      )
+    val newArchId = getMatchingArchId(newCompIndices.keys()).getOrElse() {
+      addArch(Arch(newCompIndices, resizableArray(4)))
+    };
+    val newArch = archs.unsafeGet(newArchId);
+    val newEntityIndex = newArch.entities.add(oldArch.entities.unsafeGet(entityData.entityIndex));
+    oldArch.componentIndices.keys().foreach() { compId =>
+      newArch.componentIndices.unsafeGet(compId).add(oldArch.componentIndices.unsafeGet(compId).unsafeGet(entityData.entityIndex));
+      ()
+    };
+    newArch.componentIndices.unsafeGet(componentId).add(componentIndex);
+    val swapped = oldArch.removeSwapEntityIndices(entityData.entityIndex);
+    if (entityData.archId > 0 && oldArch.entities.size() == 0) {
+      removeArch(entityData.archId);
     }
+    (
+      EntityData(newArchId, newEntityIndex),
+      swapped
+    )
   }
   try {
     prog();
@@ -290,9 +293,6 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         }
       }
     }
-    def internalAddExistingComponent(entityData, componentId, componentIndex) = {
-      resume(addExistingComponent(entityData, componentId, componentIndex))
-    }
     def internalRemoveComponent(entityData, componentId) = {
       val oldArch = archs.unsafeGet(entityData.archId);
       val newCompIndices = emptyMap();
@@ -331,25 +331,26 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
         ))
       }
     }
-    def internalIterEntities(archIds, iterAll) = {
+    def internalIterEntitiesArchIdsEntityIndices(archIds, iterAll) = {
       resume { { prog } =>
         if (archIds.size() == 0 && not(iterAll)) {
           try {
             prog();
-          } with read[Entity] {
+          } with read[(Entity, Int, Int)] {
             do stop()
           }
         }
         var archIndex = 0;
+        var archId = archIds.unsafeGet(archIndex);
         var entities = if (iterAll) {
           archs.unsafeGet(archIndex).entities
         } else {
-          archs.unsafeGet(archIds.unsafeGet(archIndex)).entities
+          archs.unsafeGet(archId).entities
         };
         var index = 0;
         try {
           prog();
-        } with read[Entity] {
+        } with read[(Entity, Int, Int)] {
           resume {
             while (index >= entities.size()) {
               index = 0;
@@ -373,260 +374,29 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
                 if (archIndex >= archIds.size()) {
                   do stop()
                 } else {
-                  entities = archs.unsafeGet(archIds.unsafeGet(archIndex)).entities;
+                  archId = archIds.unsafeGet(archIndex);
+                  entities = archs.unsafeGet(archId).entities;
                 }
               }
             }
+            val entityIndex = index;
             index = index + 1;
-            entities.unsafeGet(index - 1)
+            (entities.unsafeGet(entityIndex), archId, entityIndex)
           }
         }
       }
     }
-    def internalIterRO[T](archIds) = {
-      resume { { prog } =>
-        if (archIds.size() == 0) {
-          try {
-            prog();
-          } with read[T] {
-            do stop()
-          }
-        }
-        val compId = do getComponentId[T]();
-        var archIndex = 0;
-        var componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId).unsafeValue();
-        var index = 0;
-        try {
-          prog();
-        } with read[T] {
-          resume {
-            while (index >= componentIndices.size()) {
-              index = 0;
-              archIndex = archIndex + 1;
-              if (archIndex >= archIds.size()) {
-                do stop()
-              } else {
-                componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId).unsafeValue();
-              }             
-            }
-            index = index + 1;
-            do internalGetComponent(componentIndices.unsafeGet(index - 1))
-          }
-        }
-      }
-    }
-    def internalIterRW[T](archIds) = {
-      resume { { prog } =>
-        if (archIds.size() == 0) {
-          try {
-            prog();
-          } with read[T] {
-            do stop()
-          } with emit[T] { _ =>
-            do stop()
-          }
-        }
-        val compId = do getComponentId[T]();
-        var archIndex = 0;
-        var componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId).unsafeValue();
-        var index = 0;
-        try {
-          prog();
-        } with read[T] {
-          resume {
-            while (index >= componentIndices.size()) {
-              index = 0;
-              archIndex = archIndex + 1;
-              if (archIndex >= archIds.size()) {
-                do stop()
-              } else {
-                componentIndices = getComponentIndices(archIds.unsafeGet(archIndex), compId).unsafeValue();
-              }             
-            }
-            index = index + 1;
-            do internalGetComponent(componentIndices.unsafeGet(index - 1))
-          }
-        } with emit[T] { value =>
-          do internalSetComponent(componentIndices.unsafeGet(index - 1), value)
-          resume(())
-        }
-      }
-    }
-    def internalIterOptRO[T](archIds, iterAll) = {
-      resume { { prog } =>
-        if (archIds.size() == 0 && not(iterAll)) {
-          try {
-            prog();
-          } with read[Option[T]] {
-            do stop()
-          }
-        }
-        val compId = do getComponentId[T]();
-        var archIndex = 0;
-        var componentIndices = None();
-        var entityCount = 0;
-        if (iterAll) {
-          (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-        } else {
-          (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-        } match {
-          case (ci, ec) => {
-            componentIndices = ci;
-            entityCount = ec;
-          }
-        };
-        var index = 0;
-        try {
-          prog();
-        } with read[Option[T]] {
-          resume {
-            while (index >= entityCount) {
-              index = 0;
-              if (iterAll) {
-                loop { { l } =>
-                  archIndex = archIndex + 1;
-                  if (archIndex >= archs.size()) {
-                    do stop()
-                  } else {
-                    if (archs.get(archIndex).isDefined()) {
-                      if (iterAll) {
-                        (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-                      } else {
-                        (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-                      } match {
-                        case (ci, ec) => {
-                          componentIndices = ci;
-                          entityCount = ec;
-                        }
-                      };
-                    } else {
-                      l.continue();
-                    }
-                    l.break();
-                  }
-                }
-              } else {
-                archIndex = archIndex + 1;
-                if (archIndex >= archIds.size()) {
-                  do stop()
-                } else {
-                  if (iterAll) {
-                    (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-                  } else {
-                    (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-                  } match {
-                    case (ci, ec) => {
-                      componentIndices = ci;
-                      entityCount = ec;
-                    }
-                  };
-                }
-              }
-            }
-            index = index + 1;
-            componentIndices.map() { compIndices =>
-              do internalGetComponent(compIndices.unsafeGet(index - 1))
-            }
-          }
-        }
-      }
-    }
-    def internalIterOptRW[T](archIds, iterAll) = {
-      resume { { prog } =>
-        if (archIds.size() == 0 && not(iterAll)) {
-          try {
-            prog();
-          } with read[Option[T]] {
-            do stop()
-          } with emit[Option[T]] { _ =>
-            do stop()
-          }
-        }
-        val compId = do getComponentId[T]();
-        var archIndex = 0;
-        var componentIndices = None();
-        var entityCount = 0;
-        if (iterAll) {
-          (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-        } else {
-          (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-        } match {
-          case (ci, ec) => {
-            componentIndices = ci;
-            entityCount = ec;
-          }
-        };
-        var index = 0;
-        try {
-          prog();
-        } with read[Option[T]] {
-          resume {
-            while (index >= entityCount) {
-              index = 0;
-              if (iterAll) {
-                loop { { l } =>
-                  archIndex = archIndex + 1;
-                  if (archIndex >= archs.size()) {
-                    do stop()
-                  } else {
-                    if (archs.get(archIndex).isDefined()) {
-                      if (iterAll) {
-                        (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-                      } else {
-                        (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-                      } match {
-                        case (ci, ec) => {
-                          componentIndices = ci;
-                          entityCount = ec;
-                        }
-                      };
-                    } else {
-                      l.continue();
-                    }
-                    l.break();
-                  }
-                }
-              } else {
-                archIndex = archIndex + 1;
-                if (archIndex >= archIds.size()) {
-                  do stop()
-                } else {
-                  if (iterAll) {
-                    (getComponentIndices(archIndex, compId), archs.unsafeGet(archIndex).entities.size())
-                  } else {
-                    (getComponentIndices(archIds.unsafeGet(archIndex), compId), archs.unsafeGet(archIndex).entities.size())
-                  } match {
-                    case (ci, ec) => {
-                      componentIndices = ci;
-                      entityCount = ec;
-                    }
-                  };
-                }
-              }
-            }
-            index = index + 1;
-            componentIndices.map() { compIndices =>
-              do internalGetComponent(compIndices.unsafeGet(index - 1))
-            }
-          }
-        } with emit[Option[T]] { value =>
-          (componentIndices, value) match {
-            case (Some(compIndices), Some(value)) => do internalSetComponent(compIndices.unsafeGet(index - 1), value)
-            case _ => ()
-          }
-          resume(())
-        }
-
-      }      
+    def internalGetComponentIndices(archId, componentId) = {
+      resume(archs.unsafeGet(archId).componentIndices.get(componentId))
     }
     def internalGetQueryArchIds(withIds, withoutIds, lastChangeVersion) = {
       var result = None();
       if (lastChangeVersion < changeVersion) {
-        val matching = resizableArray(4);
+        var matching = resizableArray(4);
         archs.arr.foreachIndex() { (i, archOpt) =>
           archOpt.map() { arch =>
             val archCompIds = arch.componentIndices;
-            if (archCompIds.containsAll(withIds.keys()) && archCompIds.containsNone(withoutIds.keys())) {
+            if (archCompIds.containsAllKeys(withIds.keys()) && archCompIds.containsNoKeys(withoutIds.keys())) {
               matching.add(i);
               ()
             }
@@ -838,18 +608,18 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
 }
 
 def system()
-{ prog: => Unit / System }
-{ body: => Unit / EntityManager }: Unit /
+{ body: => Unit / EntityManager }
+{ prog: => Unit / System }: Unit /
 { System, ArchManager, EntityIdManager } = {
   try {
     prog();
   } with System {
     def internalStep() = {
       resume {
-          do internalStep();
-          systemEntityManager(do internalGetEntityDatas()) {
-            body();
-          };
+        do internalStep();
+        systemEntityManager(do internalGetEntityDatas()) {
+          body();
+        };
       }
     }
   }
@@ -867,51 +637,121 @@ def defaultSystem() { prog: => Unit / System }: Unit = {
   }
 }
 
-def query[T]() { prog: => Unit / Query }: Unit / { ArchManager, Component[T] } = {
-  val compId = do getComponentId[T]();
-  val withIds = emptyMap();
-  val withoutIds = emptyMap();
-  withIds.update(compId, ());
+def beginQuery() { prog: => Unit / QueryBuilder }: Unit / ArchManager = {
+  var withIds = emptyMap();
+  var withoutIds = emptyMap();
+  var lastChangeVersion = 0;
+  var matchingArchIds = resizableArray(0);
+  var componentIndices = resizableArray(0);
+  var optComponentIndices = resizableArray(0);
+  var entityIndex = 0;
   try {
     prog();
-  } with Query {
-    def foreach() = {
-      resume { { action } =>
+  } with QueryBuilder {
+    def addC[T]() = {
+      resume { { prog } =>
+        val compId = do getComponentId[T]();
+        withIds.update(compId, ());
+        val compIndices = ref(resizableArray(0));
+        componentIndices.add((compId, compIndices));
+        try {
+          prog() { iter };
+        } with iter: CompIter[T] {
+          def get() = {
+            resume(do internalGetComponent(compIndices.get().unsafeGet(entityIndex)))
+          }
+          def set(value) = {
+            do internalSetComponent(compIndices.get().unsafeGet(entityIndex), value)
+            resume(())
+          }
+        }
       }
     }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
-    }
-  }
-}
-
-def queryAll() { prog: => Unit / Query }: Unit / ArchManager = {
-  val withIds = emptyMap();
-  val withoutIds = emptyMap();
-  try {
-    prog();
-  } with Query {
-    def foreach() = {
-      resume { { action } =>
+    def addOptC[T]() = {
+      resume { { prog } =>
+        val compId = do getComponentId[T]();
+        withIds.update(compId, ());
+        val optCompIndices = ref(None());
+        optComponentIndices.add((compId, optCompIndices));
+        try {
+          prog() { iter };
+        } with iter: CompIter[Option[T]] {
+          def get() = {
+            val value = optCompIndices.get().map[ResizableArray[Int], T]() { ci =>
+              do internalGetComponent(ci.unsafeGet(entityIndex))
+            };
+            resume(value)
+          }
+          def set(value) = {
+            (optCompIndices.get(), value) match {
+              case (Some(ci), Some(v)) => do internalSetComponent(ci.unsafeGet(entityIndex), v)
+              case _ => ()
+            };
+            resume(())
+          }
+        }
       }
     }
-    def internalGetWithWithoutIds() = {
-      resume((withIds, withoutIds))
+    def withC[T]() = {
+      resume {
+        val compId = do getComponentId[T]();
+        withIds.update(compId, ());
+      }
     }
-  }
-}
-
-def addC[T]() { prog: { iter: QueryIter[T] } => Unit }: Unit / { Query, Component[T] } = {
-  val compId = do getComponentId();
-  (do internalGetWithWithoutIds()).first.update(compId, ());
-  try {
-    prog() { i };
-  } with i: QueryIter[T] {
-    def get() = {
-      resume()
+    def withoutC[T]() = {
+      resume {
+        val compId = do getComponentId[T]();
+        withoutIds.update(compId, ());
+      }
     }
-    def set(value) = {
-      resume()
+    def buildQuery() = {
+      resume { { prog } =>
+        try {
+          prog() { q };
+        } with q: Query {
+          def foreach() = {
+            resume { { action } =>
+              (do internalGetQueryArchIds(withIds, withoutIds, lastChangeVersion)).map() { result =>
+                matchingArchIds = result.first;
+                lastChangeVersion = result.second;
+              };
+              try {
+                with do internalIterEntitiesArchIdsEntityIndices(matchingArchIds, withIds.size() == 0);
+                var currArchId = -1;
+                loop {
+                  val entity = do read[(Entity, Int, Int)]() match {
+                    case (entity, archId, index) => {
+                      entityIndex = index;
+                      if (archId != currArchId) {
+                        currArchId = archId;
+                        componentIndices.foreach() { value =>
+                          value match {
+                            case (compId, compIndices) => {
+                              do internalGetComponentIndices(archId, compId) match {
+                                case Some(ci) => compIndices.set(ci)
+                                case _ => ()
+                              }
+                            }
+                          }
+                        }
+                        optComponentIndices.foreach() { value =>
+                          value match {
+                            case (compId, optCompIndices) => optCompIndices.set(do internalGetComponentIndices(archId, compId))
+                          }
+                        }
+                      }
+                      entity
+                    }
+                  };
+                  action(entity);
+                };
+              } with stop {
+                ()
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

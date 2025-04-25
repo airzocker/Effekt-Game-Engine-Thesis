@@ -55,9 +55,9 @@ def remove[T](optionArray: OptionArray[T], index: Int): Unit = {
   ()
 }
 
-def containsAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
+def containsAllKeys[K, V](map: Map[K, V], keys: Array[K]): Bool = {
   var contains = true;
-  values.foreach() { (value) { l } =>
+  keys.foreach() { (value) { l } =>
     if (map.get(value).isDefined()) {
       l.continue();
     }
@@ -67,9 +67,9 @@ def containsAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
   contains
 }
 
-def containsNone[K, V](map: Map[K, V], values: Array[K]): Bool = {
+def containsNoKeys[K, V](map: Map[K, V], keys: Array[K]): Bool = {
   var contains = true;
-  values.foreach() { (value) { l } =>
+  keys.foreach() { (value) { l } =>
     if (map.get(value).isDefined()) {
       contains = false;
       l.break();
@@ -78,11 +78,11 @@ def containsNone[K, V](map: Map[K, V], values: Array[K]): Bool = {
   contains
 }
 
-def containsOnlyAll[K, V](map: Map[K, V], values: Array[K]): Bool = {
-  if (values.size() != map.size()) {
+def containsOnlyAllKeys[K, V](map: Map[K, V], keys: Array[K]): Bool = {
+  if (keys.size() != map.size()) {
     false
   } else {
-    map.containsAll(values)
+    map.containsAllKeys(keys)
   }
 }
 

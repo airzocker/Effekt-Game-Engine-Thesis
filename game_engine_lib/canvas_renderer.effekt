@@ -34,28 +34,25 @@ def canvasRenderer() { prog: => Unit / {
     0.0,
     10.0
   ));
-  with def q = query[Position]();
-  with def q = q.addOptC[Position, Unit, Unit, Rotation]() { q };
-  with def q = q.addOptC[(Position, Option[Rotation]), Unit, Unit, Scale]() { q };
-  with def q = q.addC[((Position, Option[Rotation]), Option[Scale]), Unit, Unit, Shape]() { q };
-  with def query = q.buildQuery() { q };
+  with beginQuery();
+  with def positions = do addC[Position]();
+  with def optRotations = do addOptC[Rotation]();
+  with def optScales = do addOptC[Scale]();
+  with def shapes = do addC[Shape]();
+  with def query = do buildQuery();
   with system() {
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
     setCameraTransform(context, do getResource[Camera]());
-    query.foreachRO() { (_, values) =>
-      values match {
-        case (((position, optRotation), optScale), shape) => {
-          val rotation = optRotation.getOrElse() { default() };
-          val scale = optScale.getOrElse() { default() };
-          jsSave(context);
-          setTransform(context, position.value, rotation.value, scale.value);
-          drawShape(context, shape);
-          jsRestore(context);
-        }
-      }
+    query.foreach() { (_) =>
+      val rotation = optRotations.get().getOrElse() { default() };
+      val scale = optScales.get().getOrElse() { default() };
+      jsSave(context);
+      setTransform(context, positions.get().value, rotation.value, scale.value);
+      drawShape(context, shapes.get());
+      jsRestore(context);
       ()
     }
   };
