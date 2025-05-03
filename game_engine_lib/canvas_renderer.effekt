@@ -34,12 +34,11 @@ def canvasRenderer() { prog: => Unit / {
     0.0,
     10.0
   ));
-  with beginQuery();
-  with def positions = do addC[Position]();
-  with def optRotations = do addOptC[Rotation]();
-  with def optScales = do addOptC[Scale]();
-  with def shapes = do addC[Shape]();
-  with def query = do buildQuery();
+  with def query = query();
+  with def positions = query.addC[Position]();
+  with def optRotations = query.addOptC[Rotation]();
+  with def optScales = query.addOptC[Scale]();
+  with def shapes = query.addC[Shape]();
   with system() {
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);

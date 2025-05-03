@@ -10,18 +10,17 @@ import game_engine_lib/input
 record Player()
 
 def exampleGame() = {
-  with panicOnECSException();
+  with panicOnEcsException();
   with engineWorld();
 
   with component[Player]();
 
   with canvasRenderer();
 
-  with beginQuery();
-  with def rotations = do addC[Rotation]();
-  do withC[Shape]();
-  do withoutC[Player]();
-  with def query = do buildQuery();
+  with def query = query();
+  with def rotations = query.addC[Rotation]();
+  query.withC[Shape]();
+  query.withoutC[Player]();
   with system() {
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * PI * 2.0 * 0.2;
@@ -37,10 +36,9 @@ def exampleGame() = {
     }
   };
 
-  with beginQuery();
-  with def positions = do addC[Position]();
-  do withC[Player]();
-  with def query = do buildQuery();
+  with def query = query();
+  with def positions = query.addC[Position]();
+  query.withC[Player]();
   with system() {
     val deltaTime = (do getResource[Time]()).deltaTime;
     val movement = deltaTime * 4.0;

@@ -55,6 +55,10 @@ def remove[T](optionArray: OptionArray[T], index: Int): Unit = {
   ()
 }
 
+def addFront[T](list: List[T], value: T): List[T] = {
+  Cons(value, list)
+}
+
 def containsAllKeys[K, V](map: Map[K, V], keys: Array[K]): Bool = {
   var contains = true;
   keys.foreach() { (value) { l } =>

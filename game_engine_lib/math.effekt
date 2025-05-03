@@ -6,27 +6,16 @@ def show(v: Vector2): String = {
   "(" ++ v.x.show() ++ ", " ++ v.y.show() ++ ")"
 }
 
-// Commented out while buggy
-/*
 def zero(): Vector2 = {
-  uniform(0.0)
+  unif(0.0)
 }
 
 def one(): Vector2 = {
-  uniform(1.0)
+  unif(1.0)
 }
 
-def uniform(d: Double): Vector2 = {
+def unif(d: Double): Vector2 = {
   Vector2(d, d)
-}
-*/
-
-def zero(): Vector2 = {
-  Vector2(0.0, 0.0)
-}
-
-def one(): Vector2 = {
-  Vector2(1.0, 1.0)
 }
 
 def setX(v: Vector2, d: Double): Vector2 = {
@@ -109,27 +98,16 @@ def show(v: Vector2Int): String = {
   "(" ++ v.x.show() ++ ", " ++ v.y.show() ++ ")"
 }
 
-// Commented out while buggy
-/*
 def zero(): Vector2Int = {
-  uniform(0)
+  unif(0)
 }
 
 def one(): Vector2Int = {
-  uniform(1)
+  unif(1)
 }
 
-def uniform(d: Int): Vector2Int = {
+def unif(d: Int): Vector2Int = {
   Vector2Int(d, d)
-}
-*/
-
-def zero(): Vector2Int = {
-  Vector2Int(0, 0)
-}
-
-def one(): Vector2Int = {
-  Vector2Int(1, 1)
 }
 
 def setX(v: Vector2Int, d: Int): Vector2Int = {
