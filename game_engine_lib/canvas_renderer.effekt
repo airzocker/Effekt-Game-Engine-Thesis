@@ -1,5 +1,7 @@
 module renderer
 
+import heap
+
 import game_engine_lib/math
 import game_engine_lib/core
 import game_engine_lib/engine
@@ -12,12 +14,34 @@ type Shape {
   Rect(color: Color);
   Text(color: Color, text: String);
 }
+record DrawHeight(value: Double)
 record Camera(position: Vector2, rotation: Double, height: Double)
 record WindowProperties(size: Vector2Int)
 
+record RenderObject(
+  entityId: Int,
+  position: Vector2,
+  rotation: Double,
+  scale: Vector2,
+  shape: Shape,
+  drawHeight: Double
+)
+
+def default(): DrawHeight = DrawHeight(0.0)
+
+def compareRenderObjectHeight(n: RenderObject, m: RenderObject): Ordering = {
+  if (n.drawHeight == m.drawHeight) {
+    compareInt(n.entityId, m.entityId)
+  } else if (n.drawHeight < m.drawHeight) {
+    Less()
+  } else {
+    Greater()
+  }
+}
+
 def canvasRenderer() { prog: => Unit / {
   Resource[Camera], Resource[WindowProperties],
-  Component[Shape],
+  Component[Shape], Component[DrawHeight],
   System
 } }: Unit / {
   Component[Position], Component[Rotation], Component[Scale],
@@ -28,29 +52,48 @@ def canvasRenderer() { prog: => Unit / {
   jsInitCanvas();
   jsInitFont(context);
   with component[Shape]();
+  with component[DrawHeight]();
   with createResource[WindowProperties](getWindowProperties());
   with createResource[Camera](Camera(
     zero(),
     0.0,
     10.0
   ));
+  // Predict render object count
+  var lastRenderObjectCount = 0;
   with def query = query();
   with def positions = query.addC[Position]();
   with def optRotations = query.addOptC[Rotation]();
   with def optScales = query.addOptC[Scale]();
   with def shapes = query.addC[Shape]();
+  with def optDrawHeights = query.addOptC[DrawHeight]();
   with system() {
     do setResource[WindowProperties](getWindowProperties());
     jsResetTransform(context);
     jsClearCanvas(context);
     jsTranslate(context, jsGetCanvasWidth().toDouble() / 2.0, jsGetCanvasHeight().toDouble() / 2.0);
     setCameraTransform(context, do getResource[Camera]());
-    query.foreach() { (_) =>
-      val rotation = optRotations.get().getOrElse() { default() };
-      val scale = optScales.get().getOrElse() { default() };
+    val renderHeap = heap(compareRenderObjectHeight, lastRenderObjectCount + 4);
+    lastRenderObjectCount = 0;
+    query.foreach() { (entity) =>
+      lastRenderObjectCount = lastRenderObjectCount + 1;
+      renderHeap.insert(
+        RenderObject(
+          entity.id,
+          positions.get().value,
+          (optRotations.get().getOrElse() { default() }).value,
+          (optScales.get().getOrElse() { default() }).value,
+          shapes.get(),
+          (optDrawHeights.get().getOrElse() { default() }).value
+        )
+      );
+    }
+    while (renderHeap.size() > 0) {
+      with panicOn[OutOfBounds, Unit]();
+      val renderObject = renderHeap.deleteMin();
       jsSave(context);
-      setTransform(context, positions.get().value, rotation.value, scale.value);
-      drawShape(context, shapes.get());
+      setTransform(context, renderObject.position, renderObject.rotation, renderObject.scale);
+      drawShape(context, renderObject.shape);
       jsRestore(context);
       ()
     }

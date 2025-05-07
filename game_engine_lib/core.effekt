@@ -104,21 +104,20 @@ extern io def delete[K, V](m: Map[K, V], key: K): Unit =
 extern pure def size[K, V](m: Map[K, V]): Int =
   js "${m}.size"
 
+def unsafePopRight[T](arr: ResizableArray[T]): T = {
+  arr.rawSizePtr.set(arr.size() - 1);
+  arr.unsafeGet(arr.size())
+}
+
 // Returns the index that got swapped away (to the removed index), if any
 def removeSwap[T](arr: ResizableArray[T], index: Int): Option[Int] = {
-  val newSize = arr.size() - 1;
   var swapped = None();
+  val newSize = arr.size() - 1;
   if (index < newSize) {
     arr.unsafeSet(index, arr.unsafeGet(newSize));
     swapped = Some(newSize);
   }
-  try {
-    arr.popRight();
-  } with Exception[OutOfBounds] {
-    def raise(exception: OutOfBounds, msg: String) = {
-      panic("OutOfBounds: " ++ msg);
-    }
-  }
+  arr.unsafePopRight();
   swapped
 }
 

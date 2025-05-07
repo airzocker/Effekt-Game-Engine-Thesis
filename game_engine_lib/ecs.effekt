@@ -382,7 +382,11 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
           }
         }
         var archIndex = 0;
-        var archId = archIds.unsafeGet(archIndex);
+        var archId = if (iterAll) {
+          0
+        } else {
+          archIds.unsafeGet(archIndex)
+        };
         var entities = if (iterAll) {
           archs.unsafeGet(archIndex).entities
         } else {
@@ -398,6 +402,7 @@ def archManager() { prog: => Unit / ArchManager }: Unit / ComponentManager = {
               if (iterAll) {
                 loop { { l } =>
                   archIndex = archIndex + 1;
+                  archId = archIndex;
                   if (archIndex >= archs.size()) {
                     do stop()
                   } else {
@@ -607,22 +612,24 @@ def systemEntityManager(entityDatas: OptionArray[(Entity, EntityData)]) { prog: 
       }
     }
     def setComponent[T](entity, value) = {
-      var didSet = false;
       var setCompOp = None();
       resume {
-        with ignoreEcsException();
-        if (do hasComponent[T](entity)) {
-          do setComponent(entity, value);
-          didSet = true;
-        } else {
+        var didSet = false;
+        def trySetComp(): Unit = {
+          with ignoreEcsException();
+          if (do hasComponent[T](entity)) {
+            do setComponent(entity, value);
+            didSet = true;
+          }
+        }
+        trySetComp();
+        if (not(didSet)) {
           setCompOp = Some(do internalCreateSetComponentOp(entity, value));
         }
       }
-      if (not(didSet)) {
-        setCompOp match {
-          case Some(op) => entityOps = entityOps.addFront(SystemSetComponent(op))
-          case None() => ()
-        }
+      setCompOp match {
+        case Some(op) => entityOps = entityOps.addFront(SystemSetComponent(op))
+        case None() => ()
       }
     }
     def internalGetEntityDatas() = {

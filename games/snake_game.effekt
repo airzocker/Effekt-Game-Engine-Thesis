@@ -68,11 +68,15 @@ def snakeGame() = {
     do setComponent(walls, Position(unif(0.0 - gridOffset)));
     do setComponent(walls, Scale(unif(gridSize.toDouble() + 2.0 * wallSize)));
     do setComponent(walls, Rect(wallColor));
+    // Draw behind everything
+    do setComponent(walls, DrawHeight(-2.0));
 
     val background = do createEntity();
     do setComponent(background, Position(unif(0.0 - gridOffset)));
     do setComponent(background, Scale(unif(gridSize.toDouble())));
     do setComponent(background, Rect(backgroundColor));
+    // Draw behind everything except walls
+    do setComponent(background, DrawHeight(-1.0));
 
     val head = do createEntity();
     do setComponent(head, Position(startPos));
@@ -104,6 +108,8 @@ def snakeGame() = {
     do setComponent(score, Scale(unif((7.0 / 8.0) * wallSize)));
     do setComponent(score, Text(textColor, ""));
     do setComponent(score, Score(0));
+    // Draw in front of everything
+    do setComponent(score, DrawHeight(1.0));
 
     do setResource[ScoreEntity](ScoreEntity(score));
   }
@@ -115,16 +121,16 @@ def snakeGame() = {
     do setComponent(gameOver, Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) + gridSize.toDouble() * gameOverTextScale)));
     do setComponent(gameOver, Scale(unif(gridSize.toDouble() * gameOverTextScale)));
     do setComponent(gameOver, Text(textColor, "GAME OVER"));
+    // Draw in front of everything
+    do setComponent(gameOver, DrawHeight(1.0));
 
     val score = (do getResource[ScoreEntity]()).value;
     do setComponent[Position](score, Position(Vector2(0.0 - gridOffset, (0.0 - gridOffset) - gridSize.toDouble() * gameOverTextScale)));
     do setComponent[Scale](score, Scale(unif(gridSize.toDouble() * gameOverTextScale)));
-    println("after gameOver");
   }
 
   // System for state updates without components
   with system() {
-    println("state system");
     // Update game dimensions from window size
     val windowSize = (do getResource[WindowProperties]()).size;
     var camHeight = gridSize.toDouble() + 2.0 * wallSize;

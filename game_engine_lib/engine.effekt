@@ -63,7 +63,7 @@ def defaultEngineSystem() { prog: => Unit / {
   with system() {
     do setResource[Time](updateTime(do getResource[Time](), do getResource[TimeScale]()));
     jsClearFrameInput();
-    if (jsGetKey("Escape")) {
+    if (jsGetKeyDown("Escape")) {
       do setResource[RunWorld](RunWorld(false));
     }
   };
