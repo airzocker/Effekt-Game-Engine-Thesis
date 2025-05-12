@@ -1,6 +1,7 @@
 #!/bin/bash
 cd ./thesis/
-pdflatex -output-directory=./out/ ./Bachelor_english.tex
 if [ "$1" = "open" ]; then
-  okular ./out/Bachelor_english.pdf
+  pdflatex -output-directory=./out/ ./Bachelor_english.tex && okular ./out/Bachelor_english.pdf
+else
+  pdflatex -output-directory=./out/ ./Bachelor_english.tex
 fi

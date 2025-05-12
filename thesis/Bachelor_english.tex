@@ -22,10 +22,19 @@
 %\footskip 2cm
 \parskip0.5explus0.1exminus0.1ex
 
-% Kann von Student auch nach pers\"onlichem Geschmack ver\"andert werden.
+% Kann von Student auch nach persönlichem Geschmack verändert werden.
 \pagestyle{headings}
 
 \sloppy
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% My commands
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand\firstname{Felix}
+\newcommand\lastname{Becker}
+\newcommand\fullname{Felix Becker}
 
 \begin{document}
 
@@ -37,23 +46,23 @@
  \begin{center}
   {\LARGE Eberhard Karls Universität Tübingen}\\
   {\large Mathematisch-Naturwissenschaftliche Fakultät \\
-Wilhelm-Schickard-Institut f\"ur Informatik\\[4cm]}
-  {\huge Bachelor Thesis Bioinformatics\\[2cm]}
+Wilhelm-Schickard-Institut für Informatik\\[4cm]}
+  {\huge Bachelor Thesis Informatics\\[2cm]}
   {\Large\bf  Title of thesis\\[1.5cm]}
- {\large Name}\\[0.5cm]
-Date\\[3cm]
+ {\large \fullname}\\[0.5cm]
+\today\\[3cm]
 \begin{center}
 {\small\bf Reviewer}\\[0.5cm]
  {\large Name Reviewer}\\
   {\footnotesize Department of Computer Science\\
-	University of T\"ubingen}
+	University of Tübingen}
   \end{center}
 	
 \begin{center}
 {\small\bf Supervisor}\\[0.5cm]
   {\large Name Supervisor}\\
   {\footnotesize Address\\
-	University of T\"ubingen}\end{center}
+	University of Tübingen}\end{center}
 
   \end{center}
 \end{titlepage}
@@ -64,9 +73,9 @@ Date\\[3cm]
 \thispagestyle{empty}
 \vspace*{\fill}
 \begin{minipage}{11.2cm}
-\textbf{Name, first name:}\\
-\emph{Title of thesis}\\ Bachelor Thesis Bioinformatics\\
-Eberhard Karls Universit\"at T\"ubingen\\
+\textbf{\lastname, \firstname :}\\
+\emph{Title of thesis}\\ Bachelor Thesis Informatics\\
+Eberhard Karls Universität Tübingen\\
 Period: from-till
 \end{minipage}
 \newpage
@@ -141,14 +150,12 @@ Write here your acknowledgements.
 %%% List of abbreviations
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% can be removed
 \addcontentsline{toc}{chapter}{List of Abbreviations}
 \chapter*{List of Abbreviations\markboth{LIST OF ABBREVIATIONS}{LIST OF ABBREVIATIONS}}
 
 \begin{tabbing}
 \textbf{FACTOTUM}\hspace{1cm}\=Schrott\kill
-\textbf{BLAST}\>Basic Local Alignment Search Tool \\
-\textbf{...} \> ...\\
+\textbf{ECS}\>Entity Component System \\
 \end{tabbing}
 
 \cleardoublepage
@@ -196,14 +203,14 @@ Write here your acknowledgements.
 %%% Erklaerung
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \thispagestyle{empty}
-\section*{Selbst\"andigkeitserkl\"arung}
+\section*{Selbständigkeitserklärung}
 
 Hiermit versichere ich, dass ich die vorliegende Bachelorarbeit 
-selbst\"andig und nur mit den angegebenen Hilfsmitteln angefertigt habe und dass alle Stellen, die dem Wortlaut oder dem 
+selbständig und nur mit den angegebenen Hilfsmitteln angefertigt habe und dass alle Stellen, die dem Wortlaut oder dem 
 Sinne nach anderen Werken entnommen sind, durch Angaben von Quellen als 
 Entlehnung kenntlich gemacht worden sind. 
-Diese Bachelorarbeit wurde in gleicher oder \"ahnlicher Form in keinem anderen 
-Studiengang als Pr\"ufungsleistung vorgelegt. 
+Diese Bachelorarbeit wurde in gleicher oder ähnlicher Form in keinem anderen 
+Studiengang als Prüfungsleistung vorgelegt. 
 
 \vskip 3cm
 
