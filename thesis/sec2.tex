@@ -1,0 +1,68 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Grundlagen
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter{Material and Methods}
+  \label{MatMet}
+
+\noindent
+In this chapter ...
+
+\section{Title of section}
+  \label{Sectionabel} 
+
+BlaBlaBla ...
+
+\subsection{Title of subsection}
+  \label{subsectionlabel}
+
+BlaBlaBla ...
+
+\noindent
+Figures and tables should only appear at the top or bottom of a page.
+
+\noindent
+Tables are generated for example as follows. Note that the caption for tables is above the table, while for figures below the figure. An example is shown in Table \ref{tabelle-1}.
+
+{
+\renewcommand{\baselinestretch}{0.9} 
+\normalsize
+\begin{table}[tb]
+  \caption[This short caption is for the list of tables]{Example table with a long legend so that you can see that the line spacing has been reduced in the legend. The font should also be slightly smaller. This makes the whole environment look more compact.}
+  \label{tabelle-1}
+\begin{tabular}{|p{2.7cm}||l|c|r|}
+\hline
+    \textbf{Column 1} 
+  & \textbf{Column 2} 
+  & \textbf{Column 3} 
+  & \textbf{Column 4} \\
+  \hline\hline
+  xxx1111
+  & xxxxxxx2222222
+  & xxxxxx333333 
+  & xxxxxxxxxx444444 \\
+  \hline
+    ...
+  & ...
+  & ...
+  & ...\\
+  \hline
+\end{tabular}
+\end{table}
+}
+
+\noindent
+A bullet list is generated as follows:
+\begin{itemize}
+\item ...
+\item ...
+\end{itemize}
+An enumeration as follows:
+\begin{enumerate}
+\item ...
+\item ...
+\end{enumerate}
+
+Emphases should be printed in \emph{italics}, 
+\textbf{bold font} is also possible.
+
