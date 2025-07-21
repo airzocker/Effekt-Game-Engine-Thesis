@@ -25,6 +25,10 @@ record ScoreEntity(value: Entity)
 def snakeGame() = {
   with panicOnEcsException();
 
+  // ECS, engine & renderer init
+  with engineWorld();
+  with canvasRenderer();
+
   // Color constants
   val wallColor = Color(100, 98, 105);
   val backgroundColor = Color(200, 180, 50);
@@ -41,10 +45,6 @@ def snakeGame() = {
   val startPos = unif((gridSize / 2).toDouble());
   val startDir = Vector2Int(0, 1);
   val gameOverTextScale = 1.0 / 12.0;
-
-  // ECS, engine & renderer init
-  with engineWorld();
-  with canvasRenderer();
 
   // Our components
   with component[SnakeTag]();
@@ -99,7 +99,7 @@ def snakeGame() = {
 
     val apple = do createEntity();
     do setComponent(apple, Position(applePos));
-    do setComponent(apple, Rect(appleColor));
+    do setComponent(apple, Circle(appleColor));
 
     do setResource[AppleEntity](AppleEntity(apple));
     
